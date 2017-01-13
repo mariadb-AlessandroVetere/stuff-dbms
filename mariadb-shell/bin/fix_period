@@ -1,0 +1,11 @@
+#!/bin/bash
+
+fix()
+{
+    find -type f -exec grep -iq '[^_\w]period[^_\w]' '{}' ';' -exec sed -i -re '/(^ERROR|^\s*#|^Warning|period for)/I! {s/((^|\W)period)([^_\w]|$)(( ) )?/\1_\3\5/ig}' '{}' ';'
+}
+
+fix
+fix
+
+#find -type f -exec grep -iq '[^_\w]period[^_\w]' '{}' ';' -exec sed -i -re '/period for/I! {s/(period)([^_\w"])(( ) )?/\1_\2\4/ig}' '{}' ';'

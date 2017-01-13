@@ -1,0 +1,5 @@
+#!/bin/bash
+. ./env.sh
+mkdir -p data run
+ln -s ../run data/run
+midb --basedir=./opt --datadir=./data --defaults-file=./mysqld.cnf

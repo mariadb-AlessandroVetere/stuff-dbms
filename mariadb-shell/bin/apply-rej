@@ -1,0 +1,11 @@
+#!/bin/bash
+set -e
+
+find -name '*.reject' |
+while read rej
+do
+    res=${rej%.reject}.result
+    mv "$rej" "$res"
+    echo "$rej"
+done
+

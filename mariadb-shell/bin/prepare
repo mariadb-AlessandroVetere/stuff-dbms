@@ -1,0 +1,32 @@
+#!/bin/bash
+
+prepare()
+{
+    mkdir -p build
+    cd build
+    cmake-ln \
+        -D CMAKE_INSTALL_PREFIX:STRING=${opt} \
+        -D CMAKE_BUILD_TYPE:STRING=Debug \
+        -D CMAKE_C_COMPILER:STRING=/home/midenok/bin/cc \
+        -D CMAKE_CXX_COMPILER:STRING=/home/midenok/bin/c++ \
+        -D CMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0" \
+        -D CMAKE_C_FLAGS_DEBUG:STRING="-g -O0" \
+        -D SECURITY_HARDENED:BOOL=FALSE \
+        ../src
+}
+
+case "$1" in
+clean)
+    rm -rf build
+    shift
+    prepare
+    "$@"
+    ;;
+distclean)
+    rm -rf build
+    ;;
+*)
+    prepare
+    "$@"
+    ;;
+esac

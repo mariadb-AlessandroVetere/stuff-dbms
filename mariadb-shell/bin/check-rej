@@ -1,0 +1,15 @@
+#!/bin/bash
+rm -f /tmp/rej.diff
+find -name '*.reject' |
+while read rej
+do
+    res=${rej%.reject}.result
+    diff -u $res $rej >> /tmp/rej.diff
+done
+
+if [ -n "$1" ]
+then
+    grep -Ev "$1" /tmp/rej.diff|grep '^[+-]'
+else
+    cat /tmp/rej.diff
+fi

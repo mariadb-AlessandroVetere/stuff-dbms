@@ -1,0 +1,26 @@
+#!/bin/bash
+opt=$1
+
+while true
+do
+    src=(`git diff --name-only|uniq`)
+    [ -n "${src[0]}" ] ||
+        break
+
+    emacs "${src[@]}" ||
+        break
+
+    [ "$opt" = only ] &&
+        break
+
+    grep -q '^<<<<<<< ' "${src[@]}" &&
+        break
+
+    git add "${src[@]}" ||
+        break
+
+    git rebase --continue
+done
+
+
+

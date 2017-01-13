@@ -1,0 +1,217 @@
+#!/bin/bash
+if [[ $_ != $0 ]]
+then
+    script="${BASH_SOURCE[0]}"
+    unset exec
+else
+    script="$0"
+    if [ -z "$1" ]
+    then
+        exec="exec bash"
+    else
+        exec="exec $1"
+        shift
+    fi
+fi
+
+export etc_dir=$(dirname $script)
+export opt="${etc_dir}/opt"
+export src="${etc_dir}/src"
+export build="${etc_dir}/build"
+export proj_dir=$(readlink -ne "${etc_dir}/..")
+export log_dir="${etc_dir}/log"
+
+PATH="${opt}/bin:${proj_dir}/test:${opt}/scripts:${opt}/mysql-test:${opt}/sql-bench:${etc_dir}:${etc_dir}/bin:${etc_dir}/issues:${PATH}"
+CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src}/storage/innobase"
+
+# innodb_ruby setup
+PATH="${proj_dir}/innodb_ruby/bin:${PATH}"
+export RUBYLIB=${proj_dir}/innodb_ruby/lib
+alias ispace=innodb_space
+alias ilog=innodb_log
+
+mtr()
+{(
+    mkdir -p "$log_dir"
+    cd "$log_dir"
+    exec mysql-test-run --force --max-test-fail=0 --suite-timeout=1440 "$@" 2>&1 | tee -a mtr.log
+)}
+
+alias mtrh="mysql-test-run --help | less"
+alias mtrx="mtr --extern socket=${build}/mysql-test/var/tmp/mysqld.1.sock"
+alias mtrb="mtr --big-test --big-test"
+alias mtrf="mtr --big-test"
+alias mtrm="mtr --suite=main"
+alias mtrv="mtr --suite=versioning"
+alias mtrg="mtr --manual-gdb"
+alias myh="mysqld --verbose --help | less"
+
+gs()
+{(
+    cd "$src"
+    rgrep "$@" sql storage/innobase
+)}
+
+gsl() { gs "$@" | less; }
+
+mtrval()
+{
+    mtr --valgrind-mysqld --valgrind-option="--leak-check=no --track-origins=yes --log-file=${log_dir}/badmem.log" "$@"
+}
+
+mysql_client=$(which mysql)
+
+mysql()
+{
+    db=${1:-test}
+    shift
+    "$mysql_client" -S "${etc_dir}/run/mysqld.sock" -u root "$db" "$@"
+}
+
+export MYSQL_UNIX_PORT="${etc_dir}/run/mysqld.sock"
+
+run()
+{(
+    if [ -n "$1" -a -f "$1" ]
+    then
+        defaults="$1"
+        shift
+    else
+        cd "${etc_dir}"
+        defaults=mysqld.cnf
+    fi
+    exec "${opt}/bin/mysqld" "--defaults-file=$defaults" --debug-gdb "$@"
+)}
+export -f run
+
+rund()
+{(
+    if [ -n "$1" -a -f "$1" ]
+    then
+        defaults="$1"
+        shift
+    else
+        cd "${etc_dir}"
+        defaults=mysqld.cnf
+    fi
+    exec gdb -q --args "${opt}/bin/mysqld" "--defaults-file=$defaults" --debug-gdb "$@"
+)}
+export -f rund
+
+runt()
+{(
+    cd "${src}/mysql-test"
+    exec "${opt}/bin/mysqld" --defaults-group-suffix=.1 --defaults-file=/home/midenok/src/mariadb/hagrid/build/mysql-test/var/my.cnf --log-output=file --gdb --core-file --loose-debug-sync-timeout=300 --debug --debug-gdb "$@"
+)}
+export -f runt
+
+slave()
+{(
+    etc_dir=${HOME}/slave
+    "$@"
+)}
+
+init()
+{(
+    cd "${etc_dir}"
+    exec init.sh
+)}
+export -f init
+
+attach()
+{
+    gdb-attach ${opt}/bin/mysqld
+}
+
+prepare()
+{
+    cd ~
+    mkdir -p build
+    cd build
+    unset plugins
+    if [ -f ~/plugin_exclude ]
+    then
+        while read a b
+        do
+            [ -n "$a" ] &&
+                plugins="$plugins -D$a=NO"
+        done < ~/plugin_exclude
+    fi
+    cmake-ln \
+        -D CMAKE_INSTALL_PREFIX:STRING=${opt} \
+        -D CMAKE_BUILD_TYPE:STRING=Debug \
+        -D CMAKE_C_COMPILER:STRING=/home/midenok/bin/cc \
+        -D CMAKE_CXX_COMPILER:STRING=/home/midenok/bin/c++ \
+        -D CMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0" \
+        -D CMAKE_C_FLAGS_DEBUG:STRING="-g -O0" \
+        -D SECURITY_HARDENED:BOOL=FALSE \
+        -D WITH_INNOBASE_STORAGE_ENGINE:BOOL=ON \
+        -D WITH_CSV_STORAGE_ENGINE:BOOL=OFF \
+        -D WITH_WSREP:BOOL=OFF \
+        $plugins \
+        "$@" \
+        ../src
+}
+export -f prepare
+
+relprepare()
+{
+    mkdir -p build-rel
+    cd build-rel
+    cmake-ln \
+        -D CMAKE_INSTALL_PREFIX:STRING=${opt} \
+        -D BUILD_CONFIG:STRING=mysql_release \
+        -D WITH_JEMALLOC:BOOL=ON \
+        -D WITH_WSREP:BOOL=OFF \
+        -D CMAKE_C_COMPILER:STRING=/home/midenok/bin/cc \
+        -D CMAKE_CXX_COMPILER:STRING=/home/midenok/bin/c++ \
+        -D CMAKE_CXX_FLAGS_RELEASE:STRING="-g" \
+        -D CMAKE_C_FLAGS_RELEASE:STRING="-g" \
+        -D WITH_INNOBASE_STORAGE_ENGINE:BOOL=ON \
+        "$@" \
+        ../src
+}
+
+cmakemin()
+{
+    cmake-ln \
+        -D CMAKE_INSTALL_PREFIX:STRING=${opt} \
+        -D CMAKE_C_COMPILER:STRING=/home/midenok/bin/cc \
+        -D CMAKE_CXX_COMPILER:STRING=/home/midenok/bin/c++ \
+        "$@"
+}
+
+
+git()
+{
+    if [ "$1" = clone ] || $(which git) rev-parse &> /dev/null
+    then
+        $(which git) "$@"
+    else (
+        cd "$src"
+        $(which git) "$@"
+    )
+    fi
+}
+export -f git
+
+make()
+{
+    if [ -f Makefile ]
+    then
+        $(which make) "$@"
+    else (
+        cd "$build"
+        $(which make) "$@"
+    )
+    fi
+}
+export -f make
+
+gdb()
+{
+    unset gdb_opts
+    [ -f ".gdb" ] &&
+        gdb_opts="-x .gdb"
+    $(which gdb) -q $gdb_opts "$@"
+}
