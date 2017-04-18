@@ -7,14 +7,17 @@ do
     [ -n "${src[0]}" ] ||
         break
 
-    emacs "${src[@]}" ||
-        break
+    if grep -q '^<<<<<<< ' "${src[@]}"
+    then
+      emacs "${src[@]}" ||
+          break
 
-    [ "$opt" = only ] &&
-        break
+      ([ "$opt" = only ] || grep -q '^<<<<<<< ' "${src[@]}") &&
+          break
 
-    grep -q '^<<<<<<< ' "${src[@]}" &&
-        break
+      make -j8 ||
+          break
+    fi
 
     git add "${src[@]}" ||
         break

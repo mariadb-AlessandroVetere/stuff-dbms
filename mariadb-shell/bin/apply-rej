@@ -1,11 +1,23 @@
 #!/bin/bash
 set -e
 
-find -name '*.reject' |
-while read rej
-do
+do_apply()
+{
     res=${rej%.reject}.result
     mv "$rej" "$res"
     echo "$rej"
-done
+}
 
+if [ -n "$1" ]
+then
+    for rej in "$@"
+    do
+        do_apply
+    done
+else
+    find -name '*.reject' |
+    while read rej
+    do
+        do_apply
+    done
+fi

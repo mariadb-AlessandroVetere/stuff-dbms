@@ -98,18 +98,14 @@ rund()
 )}
 export -f rund
 
+
+
 runt()
 {(
     cd "${src}/mysql-test"
     exec "${opt}/bin/mysqld" --defaults-group-suffix=.1 --defaults-file=/home/midenok/src/mariadb/hagrid/build/mysql-test/var/my.cnf --log-output=file --gdb --core-file --loose-debug-sync-timeout=300 --debug --debug-gdb "$@"
 )}
 export -f runt
-
-slave()
-{(
-    etc_dir=${HOME}/slave
-    "$@"
-)}
 
 init()
 {(
@@ -140,12 +136,11 @@ prepare()
     cmake-ln \
         -D CMAKE_INSTALL_PREFIX:STRING=${opt} \
         -D CMAKE_BUILD_TYPE:STRING=Debug \
-        -D CMAKE_C_COMPILER:STRING=/home/midenok/bin/cc \
-        -D CMAKE_CXX_COMPILER:STRING=/home/midenok/bin/c++ \
         -D CMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0" \
         -D CMAKE_C_FLAGS_DEBUG:STRING="-g -O0" \
         -D SECURITY_HARDENED:BOOL=FALSE \
         -D WITH_INNOBASE_STORAGE_ENGINE:BOOL=ON \
+        -D WITH_UNIT_TESTS:BOOL=OFF \
         -D WITH_CSV_STORAGE_ENGINE:BOOL=OFF \
         -D WITH_WSREP:BOOL=OFF \
         $plugins \
@@ -163,8 +158,6 @@ relprepare()
         -D BUILD_CONFIG:STRING=mysql_release \
         -D WITH_JEMALLOC:BOOL=ON \
         -D WITH_WSREP:BOOL=OFF \
-        -D CMAKE_C_COMPILER:STRING=/home/midenok/bin/cc \
-        -D CMAKE_CXX_COMPILER:STRING=/home/midenok/bin/c++ \
         -D CMAKE_CXX_FLAGS_RELEASE:STRING="-g" \
         -D CMAKE_C_FLAGS_RELEASE:STRING="-g" \
         -D WITH_INNOBASE_STORAGE_ENGINE:BOOL=ON \
@@ -176,8 +169,6 @@ cmakemin()
 {
     cmake-ln \
         -D CMAKE_INSTALL_PREFIX:STRING=${opt} \
-        -D CMAKE_C_COMPILER:STRING=/home/midenok/bin/cc \
-        -D CMAKE_CXX_COMPILER:STRING=/home/midenok/bin/c++ \
         "$@"
 }
 
@@ -214,4 +205,20 @@ gdb()
     [ -f ".gdb" ] &&
         gdb_opts="-x .gdb"
     $(which gdb) -q $gdb_opts "$@"
+}
+
+port()
+{
+    port=$1
+    if [ "$port" ]
+    then
+        if ! ((port > 0))
+        then
+            echo "Positive number expected!" >&2
+            return 1;
+        fi
+        sed -i -Ee '/^\s*port\s*=\s*[[:digit:]]+/ { s/^(.+=\s*)[[:digit:]]+\s*$/\1'${port}'/; }' ~/mysqld.cnf
+    else
+        sed -nEe '/^\s*port\s*=\s*[[:digit:]]+/ { s/.+=\s*([[:digit:]]+)\s*$/\1/; p; }' ~/mysqld.cnf
+    fi
 }
