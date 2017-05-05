@@ -57,7 +57,7 @@ done
 homepath=$HOME/src/mariadb
 bush_name=$1
 m=$homepath/$bush_name
-skel=$homepath/skel
+skel=$homepath/data/skel
 
 if [ "$update" = false -a -e "$m" ]
 then

@@ -34,7 +34,7 @@ mtr()
 {(
     mkdir -p "$log_dir"
     cd "$log_dir"
-    exec mysql-test-run --force --max-test-fail=0 --suite-timeout=1440 "$@" 2>&1 | tee -a mtr.log
+    exec mysql-test-run --force --max-test-fail=0 --suite-timeout=1440 --tail-lines=0 "$@" 2>&1 | tee -a mtr.log
 )}
 
 alias mtrh="mysql-test-run --help | less"
@@ -68,6 +68,13 @@ mysql()
     "$mysql_client" -S "${etc_dir}/run/mysqld.sock" -u root "$db" "$@"
 }
 
+mysqlt()
+{
+    db=${1:-mtr}
+    shift
+    "$mysql_client" -S "${build}/mysql-test/var/tmp/mysqld.1.sock" -u root "$db" "$@"
+}
+
 export MYSQL_UNIX_PORT="${etc_dir}/run/mysqld.sock"
 
 run()
@@ -98,12 +105,10 @@ rund()
 )}
 export -f rund
 
-
-
 runt()
 {(
     cd "${src}/mysql-test"
-    exec "${opt}/bin/mysqld" --defaults-group-suffix=.1 --defaults-file=/home/midenok/src/mariadb/hagrid/build/mysql-test/var/my.cnf --log-output=file --gdb --core-file --loose-debug-sync-timeout=300 --debug --debug-gdb "$@"
+    exec gdb -q --args "${opt}/bin/mysqld" --defaults-group-suffix=.1 --defaults-file=${build}/mysql-test/var/my.cnf --log-output=file --gdb --core-file --loose-debug-sync-timeout=300 --debug --debug-gdb "$@"
 )}
 export -f runt
 
