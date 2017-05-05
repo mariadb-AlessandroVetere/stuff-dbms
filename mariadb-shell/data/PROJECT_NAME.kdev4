@@ -1,0 +1,4 @@
+[Project]
+CreatedFrom=${PROJECT_NAME}
+Manager=KDevCustomBuildSystem
+Name=${PROJECT_NAME}
