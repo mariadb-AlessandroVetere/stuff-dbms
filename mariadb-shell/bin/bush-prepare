@@ -14,14 +14,19 @@ EOF
 
 me=$(basename "$0")
 
-optstring_long="update,source-from:,verbose,help"
-optstring_short="us:c:vh"
+optstring_long="update,project,links,skel,refs,source-from:,source:,clone-from:,clone:,verbose,help"
+optstring_short="uplkrs:c:vh"
 
 opts=$(getopt -o "${optstring_short}" --long "${optstring_long}" --name "$0" -- "$@") ||
     exit $?
 eval set -- "$opts"
 
 update=false
+selection=false
+select_project=false
+select_links=false
+select_skel=false
+select_refs=false
 unset source_from
 clone_from="git@github.com:tempesta-tech/mariadb_10.2.git"
 unset verbose_on
@@ -40,6 +45,26 @@ do
             shift 2;;
         -u|--update)
             update=true
+            shift;;
+        -p|--project)
+            update=true
+            selection=true
+            select_project=true
+            shift;;
+        -l|--links)
+            update=true
+            selection=true
+            select_links=true
+            shift;;
+        -k|--skel)
+            update=true
+            selection=true
+            select_skel=true
+            shift;;
+        -r|--refs)
+            update=true
+            selection=true
+            select_refs=true
             shift;;
         -v|--verbose)
             verbose_on="set -x"
@@ -108,57 +133,90 @@ link() # link from $1 for $2
     fi
 }
 
-unset force_link
-
-for conf in $from_home
-do
-    link "$HOME" "$conf"
-done
-unset conf
-
-force_link="yes"
-
-link "$homepath" bin
-link "${homepath}/bin" env.sh
-
-cat <<EOF > .bashrc
-source ~$USER/.bashrc
-export bush_name=\$(basename \$HOME)
-export PS1="{\$bush_name} \${PS1}"
-export CDPATH=".:~"
-
-reconf()
-{
-    source ~/.bashrc
-}
-
-source ~/env.sh
-
-[ "\$STY" ] && trap 'debug_trap' DEBUG
-EOF
-
-$verbose_echo "Wrote .bashrc"
-
-if ! $update
-then
-    HOME=$m
-    source .bashrc || true
-    $verbose git clone "${clone_from}" src
-    $verbose prepare
-fi
-
-echo "ref: refs/heads/natsys/trunk" > 'src/.git/refs/heads/trunk'
-echo "ref: refs/heads/natsys/base" > 'src/.git/refs/heads/base'
-$verbose_echo "Wrote branch links in src/.git/refs/heads/"
-
-$verbose cp -a $data/skel/. .
-
-# instantiate KDevelop project
 instantiate()
 {
     eval echo "\"$(cat $data/$1)\"" > "$2"
 }
 
-mkdir -p src/.kdev4
-$verbose instantiate project.kdev4.in src/$bush_name.kdev4
-$verbose instantiate settings.kdev4.in src/.kdev4/$bush_name.kdev4
+make_links()
+{
+    unset force_link
+
+    for conf in $from_home
+    do
+        link "$HOME" "$conf"
+    done
+    unset conf
+
+    force_link="yes"
+
+    link "$homepath" bin
+    link "${homepath}/bin" env.sh
+    unset force_link
+    echo "Made links"
+}
+
+instantiate_bash()
+{
+    instantiate bashrc.in .bashrc
+    echo "Wrote .bashrc"
+}
+
+prepare_source()
+{
+    HOME=$m
+    source .bashrc || true
+    $verbose git clone "${clone_from}" src
+    $verbose prepare
+}
+
+make_refs()
+{
+    echo "ref: refs/heads/natsys/trunk" > 'src/.git/refs/heads/trunk'
+    echo "ref: refs/heads/natsys/base" > 'src/.git/refs/heads/base'
+    echo "Wrote branch refs in src/.git/refs/heads/"
+}
+
+copy_skel()
+{
+    $verbose cp -a $data/skel/. .
+    echo "Copied skel files"
+}
+
+instantiate_project()
+{
+    mkdir -p src/.kdev4
+    instantiate project.kdev4.in src/$bush_name.kdev4
+    instantiate settings.kdev4.in src/.kdev4/$bush_name.kdev4
+    echo "Wrote KDevelop project: src/$bush_name.kdev4"
+}
+
+if ! $selection || $select_links
+then
+    make_links
+fi
+
+if ! $selection || $select_skel
+then
+    instantiate_bash
+fi
+
+if ! $update
+then
+    prepare_source
+fi
+
+if ! $selection || $select_refs
+then
+    make_refs
+fi
+
+if ! $selection || $select_skel
+then
+    copy_skel
+fi
+
+if ! $selection || $select_project
+then
+    instantiate_project
+fi
