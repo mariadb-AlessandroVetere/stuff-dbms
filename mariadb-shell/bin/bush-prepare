@@ -1,5 +1,4 @@
 #!/bin/bash
-
 from_home=$(cat <<EOF
 .gdbinit
 .emacs
@@ -16,7 +15,7 @@ EOF
 me=$(basename "$0")
 
 optstring_long="update,source-from:,verbose,help"
-optstring_short="us:vh"
+optstring_short="us:c:vh"
 
 opts=$(getopt -o "${optstring_short}" --long "${optstring_long}" --name "$0" -- "$@") ||
     exit $?
@@ -24,14 +23,20 @@ eval set -- "$opts"
 
 update=false
 unset source_from
+clone_from="git@github.com:tempesta-tech/mariadb_10.2.git"
 unset verbose_on
 unset verbose_off
+unset verbose
+verbose_echo="true"
 
 while true
 do
     case "$1" in
-        -s|--source-from)
+        -s|--source-from|--source)
             source_from=$2
+            shift 2;;
+        -c|--clone-from|--clone)
+            clone_from=$2
             shift 2;;
         -u|--update)
             update=true
@@ -39,6 +44,8 @@ do
         -v|--verbose)
             verbose_on="set -x"
             verbose_off="set +x"
+            verbose="verbose_cmd"
+            verbose_echo="echo +"
             shift;;
         -h|--help)
             cat <<EOF
@@ -54,6 +61,15 @@ done
     exit 1
 }
 
+verbose_cmd()
+{
+    echo "+ $*"
+    local flags=$-
+    set +x
+    "$@"
+    set -$flags
+}
+
 homepath=$HOME/src/mariadb
 bush_name=$1
 m=$homepath/$bush_name
@@ -67,10 +83,11 @@ fi
 
 set -e
 mkdir -p "$m"
-cd "$m"
+$verbose cd "$m"
 
 link() # link from $1 for $2
 {
+    $verbose_echo "link $*"
     if [ "$force_link" = yes -o -e "$1/$2" ]
     then
         $update &&
@@ -107,12 +124,14 @@ source ~/env.sh
 [ "\$STY" ] && trap 'debug_trap' DEBUG
 EOF
 
-cp -a $skel/. .
+$verbose_echo "Wrote .bashrc"
 
 if ! $update
 then
     HOME=$m
     source .bashrc || true
-    git clone git@github.com:tempesta-tech/mariadb_10.2.git src
-    prepare
+    $verbose git clone "${clone_from}" src
+    $verbose prepare
 fi
+
+$verbose cp -a $skel/. .
