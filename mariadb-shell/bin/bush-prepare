@@ -56,11 +56,6 @@ EOF
     esac
 done
 
-[ -z "$1" ] && {
-    echo "$me: missing DIRECTORY argument!" >&2
-    exit 1
-}
-
 verbose_cmd()
 {
     echo "+ $*"
@@ -70,10 +65,27 @@ verbose_cmd()
     set -$flags
 }
 
+if [ -n "$bush_name" ]
+then
+    [ $(basename $HOME) != "$bush_name" ] && {
+        echo "$me: unexpected \$bush_name value!"
+        exit 2
+    }
+    $verbose_echo "Already inside '${bush_name}' bush!"
+    eval HOME=~$USER
+else
+    bush_name=$1
+fi
+
 homepath=$HOME/src/mariadb
-bush_name=$1
 m=$homepath/$bush_name
 skel=$homepath/data/skel
+
+[ -z "$bush_name" ] && {
+    echo "$me: missing DIRECTORY argument!" >&2
+    exit 1
+}
+
 
 if [ "$update" = false -a -e "$m" ]
 then
@@ -133,5 +145,9 @@ then
     $verbose git clone "${clone_from}" src
     $verbose prepare
 fi
+
+echo "ref: refs/heads/natsys/trunk" > 'src/.git/refs/heads/trunk'
+echo "ref: refs/heads/natsys/base" > 'src/.git/refs/heads/base'
+$verbose_echo "Wrote branch links in src/.git/refs/heads/"
 
 $verbose cp -a $skel/. .
