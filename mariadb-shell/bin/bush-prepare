@@ -79,7 +79,7 @@ fi
 
 homepath=$HOME/src/mariadb
 m=$homepath/$bush_name
-skel=$homepath/data/skel
+data=$homepath/data
 
 [ -z "$bush_name" ] && {
     echo "$me: missing DIRECTORY argument!" >&2
@@ -110,10 +110,11 @@ link() # link from $1 for $2
 
 unset force_link
 
-for src in $from_home
+for conf in $from_home
 do
-    link "$HOME" "$src"
+    link "$HOME" "$conf"
 done
+unset conf
 
 force_link="yes"
 
@@ -150,4 +151,14 @@ echo "ref: refs/heads/natsys/trunk" > 'src/.git/refs/heads/trunk'
 echo "ref: refs/heads/natsys/base" > 'src/.git/refs/heads/base'
 $verbose_echo "Wrote branch links in src/.git/refs/heads/"
 
-$verbose cp -a $skel/. .
+$verbose cp -a $data/skel/. .
+
+# instantiate KDevelop project
+instantiate()
+{
+    eval echo "\"$(cat $data/$1)\"" > "$2"
+}
+
+mkdir -p src/.kdev4
+$verbose instantiate project.kdev4.in src/$bush_name.kdev4
+$verbose instantiate settings.kdev4.in src/.kdev4/$bush_name.kdev4

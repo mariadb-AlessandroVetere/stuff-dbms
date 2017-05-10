@@ -14,14 +14,14 @@ else
     fi
 fi
 
-export etc_dir=$(dirname $script)
-export opt="${etc_dir}/opt"
-export src="${etc_dir}/src"
-export build="${etc_dir}/build"
-export proj_dir=$(readlink -ne "${etc_dir}/..")
-export log_dir="${etc_dir}/log"
+export bush_dir=$(dirname $script)
+export opt="${bush_dir}/opt"
+export src="${bush_dir}/src"
+export build="${bush_dir}/build"
+export proj_dir=$(readlink -ne "${bush_dir}/..")
+export log_dir="${bush_dir}/log"
 
-PATH="${opt}/bin:${proj_dir}/test:${opt}/scripts:${opt}/mysql-test:${opt}/sql-bench:${etc_dir}:${etc_dir}/bin:${etc_dir}/issues:${PATH}"
+PATH="${opt}/bin:${proj_dir}/test:${opt}/scripts:${opt}/mysql-test:${opt}/sql-bench:${bush_dir}:${bush_dir}/bin:${bush_dir}/issues:${PATH}"
 CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src}/storage/innobase"
 
 # innodb_ruby setup
@@ -65,7 +65,7 @@ mysql()
 {
     db=${1:-test}
     shift
-    "$mysql_client" -S "${etc_dir}/run/mysqld.sock" -u root "$db" "$@"
+    "$mysql_client" -S "${bush_dir}/run/mysqld.sock" -u root "$db" "$@"
 }
 
 mysqlt()
@@ -75,7 +75,7 @@ mysqlt()
     "$mysql_client" -S "${build}/mysql-test/var/tmp/mysqld.1.sock" -u root "$db" "$@"
 }
 
-export MYSQL_UNIX_PORT="${etc_dir}/run/mysqld.sock"
+export MYSQL_UNIX_PORT="${bush_dir}/run/mysqld.sock"
 
 run()
 {(
@@ -84,7 +84,7 @@ run()
         defaults="$1"
         shift
     else
-        cd "${etc_dir}"
+        cd "${bush_dir}"
         defaults=mysqld.cnf
     fi
     exec "${opt}/bin/mysqld" "--defaults-file=$defaults" --debug-gdb "$@"
@@ -98,7 +98,7 @@ rund()
         defaults="$1"
         shift
     else
-        cd "${etc_dir}"
+        cd "${bush_dir}"
         defaults=mysqld.cnf
     fi
     exec gdb -q --args "${opt}/bin/mysqld" "--defaults-file=$defaults" --debug-gdb "$@"
@@ -114,7 +114,7 @@ export -f runt
 
 init()
 {(
-    cd "${etc_dir}"
+    cd "${bush_dir}"
     exec init.sh
 )}
 export -f init

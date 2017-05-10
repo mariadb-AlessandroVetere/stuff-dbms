@@ -5,7 +5,7 @@ BuildItems=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x00)
 CurrentConfiguration=BuildConfig0
 
 [CustomBuildSystem][BuildConfig0]
-BuildDir=file://${BUILD_DIR}
+BuildDir=file://${build}
 Title=default
 
 [CustomBuildSystem][BuildConfig0][ToolBuild]
@@ -56,10 +56,10 @@ Name=GCC
 MYSQL_SERVER=1
 
 [CustomDefinesAndIncludes][ProjectPath0][Includes]
-1=${SRC_DIR}/sql/
-2=${SRC_DIR}/include/
-3=${BUILD_DIR}/include/
-4=${SRC_DIR}/storage/innobase/include/
+1=${src}/sql/
+2=${src}/include/
+3=${build}/include/
+4=${src}/storage/innobase/include/
 
 [Defines And Includes][Compiler]
 Name=GCC
@@ -328,11 +328,11 @@ Arguments=--defaults-file=mysqld.cnf --debug-gdb --plugin-load=versioning
 Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x00)
 Dependency Action=Nothing
 EnvironmentGroup=
-Executable=file://${OPT_DIR}/bin/mysqld
+Executable=file://${opt}/bin/mysqld
 External Terminal=konsole --noclose --workdir %workdir -e %exe
 Project Target=
 Use External Terminal=false
-Working Directory=file://${PROJECT_DIR}
+Working Directory=file://${bush_dir}
 isExecutable=true
 
 [Launch][Launch Configuration 1]
@@ -346,11 +346,11 @@ Arguments=--defaults-file=mysqld.cnf --debug-gdb
 Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x00)
 Dependency Action=Nothing
 EnvironmentGroup=
-Executable=file://${OPT_DIR}/bin/mysqld
+Executable=file://${opt}/bin/mysqld
 External Terminal=konsole --noclose --workdir %workdir -e %exe
 Project Target=
 Use External Terminal=false
-Working Directory=file://${PROJECT_DIR}
+Working Directory=file://${bush_dir}
 isExecutable=true
 
 [Project]

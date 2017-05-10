@@ -1,0 +1,4 @@
+[Project]
+CreatedFrom=${bush_name}
+Manager=KDevCustomBuildSystem
+Name=${bush_name}
