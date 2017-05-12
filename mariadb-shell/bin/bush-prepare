@@ -164,8 +164,6 @@ instantiate_bash()
 
 prepare_source()
 {
-    HOME=$m
-    source .bashrc || true
     $verbose git clone "${clone_from}" src
     $verbose prepare
 }
@@ -195,6 +193,9 @@ if ! $selection || $select_links
 then
     make_links
 fi
+
+HOME=$m
+source .bashrc || true
 
 if ! $selection || $select_skel
 then
