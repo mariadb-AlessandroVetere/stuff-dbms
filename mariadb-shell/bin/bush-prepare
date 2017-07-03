@@ -74,7 +74,16 @@ do
             shift;;
         -h|--help)
             cat <<EOF
-FIXME: this is help!
+        -s|--source-from|--source   Local repo
+        -c|--clone-from|--clone     Remote repo
+        -u|--update                 Update files even if exist
+        -p|--project                Update project
+        -l|--links                  Update links
+        -k|--skel                   Update skel
+        -r|--refs                   Update Git refs
+        -v|--verbose                Work verbosely
+        -h|--help                   This help
+
 EOF
             exit;;
         --) shift; break;;
@@ -118,6 +127,7 @@ then
     exit 1
 fi
 
+trap debug
 set -e
 mkdir -p "$m"
 $verbose cd "$m"
@@ -164,8 +174,12 @@ instantiate_bash()
 
 prepare_source()
 {
-    $verbose git clone "${clone_from}" src
-    $verbose prepare
+    if [ -z "${source_from}" ]
+    then
+        $verbose git clone "${clone_from}" src
+    else
+        $verbose rsync -aP "${source_from}/" src
+    fi
 }
 
 make_refs()
@@ -195,12 +209,16 @@ then
 fi
 
 HOME=$m
-source .bashrc || true
 
 if ! $selection || $select_skel
 then
     instantiate_bash
 fi
+
+set +e
+source .bashrc || true
+trap debug
+set -e
 
 if ! $update
 then
@@ -215,6 +233,11 @@ fi
 if ! $selection || $select_skel
 then
     copy_skel
+fi
+
+if ! $update
+then
+    $verbose prepare
 fi
 
 if ! $selection || $select_project
