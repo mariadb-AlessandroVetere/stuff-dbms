@@ -9,7 +9,7 @@ BuildDir=file://${build}
 Title=default
 
 [CustomBuildSystem][BuildConfig0][ToolBuild]
-Arguments=-j 4
+Arguments=-j4
 Enabled=true
 Environment=
 Executable=file:make
@@ -43,6 +43,45 @@ Environment=
 Executable=
 Type=4
 
+[CustomBuildSystem][BuildConfig1]
+BuildDir=file://${HOME}/build-rel
+Title=release
+
+[CustomBuildSystem][BuildConfig1][ToolBuild]
+Arguments=-j4
+Enabled=true
+Environment=
+Executable=file:make
+Type=0
+
+[CustomBuildSystem][BuildConfig1][ToolClean]
+Arguments=
+Enabled=false
+Environment=
+Executable=
+Type=3
+
+[CustomBuildSystem][BuildConfig1][ToolConfigure]
+Arguments=
+Enabled=false
+Environment=
+Executable=
+Type=1
+
+[CustomBuildSystem][BuildConfig1][ToolInstall]
+Arguments=
+Enabled=false
+Environment=
+Executable=
+Type=2
+
+[CustomBuildSystem][BuildConfig1][ToolPrune]
+Arguments=
+Enabled=false
+Environment=
+Executable=
+Type=4
+
 [CustomDefinesAndIncludes][ProjectPath0]
 Path=.
 parseAmbiguousAsCPP=true
@@ -54,12 +93,15 @@ Name=GCC
 
 [CustomDefinesAndIncludes][ProjectPath0][Defines]
 MYSQL_SERVER=1
+WITH_PARTITION_STORAGE_ENGINE=1
+enter=
 
 [CustomDefinesAndIncludes][ProjectPath0][Includes]
 1=${src}/sql/
 2=${src}/include/
-3=${build}/include/
-4=${src}/storage/innobase/include/
+3=${src}/include/mysql/
+4=${build}/include/
+5=${src}/storage/innobase/include/
 
 [Defines And Includes][Compiler]
 Name=GCC

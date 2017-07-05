@@ -28,7 +28,7 @@ select_links=false
 select_skel=false
 select_refs=false
 unset source_from
-clone_from="git@github.com:tempesta-tech/mariadb_10.2.git"
+clone_from="git@github.com:tempesta-tech/mariadb"
 unset verbose_on
 unset verbose_off
 unset verbose
