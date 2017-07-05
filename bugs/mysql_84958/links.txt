@@ -1,0 +1,2 @@
+https://github.com/midenok/mariadb/issues/16
+https://bugs.mysql.com/bug.php?id=84958
