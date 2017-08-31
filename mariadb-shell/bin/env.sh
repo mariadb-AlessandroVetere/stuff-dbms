@@ -91,6 +91,24 @@ run()
 )}
 export -f run
 
+runval()
+{(
+    if [ -n "$1" -a -f "$1" ]
+    then
+        defaults="$1"
+        shift
+    else
+        cd "${bush_dir}"
+        defaults=mysqld.cnf
+    fi
+    exec valgrind \
+        --leak-check=no \
+        --track-origins=yes \
+        --log-file=valgrind-badmem.log \
+        "${opt}/bin/mysqld" "--defaults-file=$defaults" --debug-gdb "$@"
+)}
+export -f run
+
 rund()
 {(
     if [ -n "$1" -a -f "$1" ]
