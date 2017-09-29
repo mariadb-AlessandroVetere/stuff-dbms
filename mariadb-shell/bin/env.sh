@@ -44,7 +44,15 @@ alias mtrf="mtr --big-test"
 alias mtrm="mtr --suite=main"
 alias mtrv="mtr --suite=versioning"
 alias mtrg="mtr --manual-gdb"
+alias mtrvg="mtr --manual-gdb --suite=versioning"
 alias myh="mysqld --verbose --help | less"
+
+br()
+{(
+    a=$1
+    shift
+    git branch --all --list "*/${a}/*" "$@" | head -n1
+)}
 
 gs()
 {(
