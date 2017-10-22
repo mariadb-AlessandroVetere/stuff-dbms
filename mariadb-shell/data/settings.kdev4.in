@@ -2,11 +2,11 @@
 BuildItems=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x00)
 
 [CustomBuildSystem]
-CurrentConfiguration=BuildConfig0
+CurrentConfiguration=BuildConfig1
 
 [CustomBuildSystem][BuildConfig0]
-BuildDir=file://${build}
-Title=default
+BuildDir=file://${build}/
+Title=make
 
 [CustomBuildSystem][BuildConfig0][ToolBuild]
 Arguments=-j4
@@ -44,14 +44,14 @@ Executable=
 Type=4
 
 [CustomBuildSystem][BuildConfig1]
-BuildDir=file://${HOME}/build-rel
-Title=release
+BuildDir=file://${build}/
+Title=ninja
 
 [CustomBuildSystem][BuildConfig1][ToolBuild]
 Arguments=-j4
 Enabled=true
 Environment=
-Executable=file:make
+Executable=file:ninja
 Type=0
 
 [CustomBuildSystem][BuildConfig1][ToolClean]
@@ -82,6 +82,84 @@ Environment=
 Executable=
 Type=4
 
+[CustomBuildSystem][BuildConfig2]
+BuildDir=file://${build}-rel/
+Title=make release
+
+[CustomBuildSystem][BuildConfig2][ToolBuild]
+Arguments=-j4
+Enabled=true
+Environment=
+Executable=file:make
+Type=0
+
+[CustomBuildSystem][BuildConfig2][ToolClean]
+Arguments=
+Enabled=false
+Environment=
+Executable=
+Type=3
+
+[CustomBuildSystem][BuildConfig2][ToolConfigure]
+Arguments=
+Enabled=false
+Environment=
+Executable=
+Type=1
+
+[CustomBuildSystem][BuildConfig2][ToolInstall]
+Arguments=
+Enabled=false
+Environment=
+Executable=
+Type=2
+
+[CustomBuildSystem][BuildConfig2][ToolPrune]
+Arguments=
+Enabled=false
+Environment=
+Executable=
+Type=4
+
+[CustomBuildSystem][BuildConfig3]
+BuildDir=file://${build}-rel/
+Title=ninja release
+
+[CustomBuildSystem][BuildConfig3][ToolBuild]
+Arguments=-j4
+Enabled=true
+Environment=
+Executable=file:ninja
+Type=0
+
+[CustomBuildSystem][BuildConfig3][ToolClean]
+Arguments=
+Enabled=false
+Environment=
+Executable=
+Type=3
+
+[CustomBuildSystem][BuildConfig3][ToolConfigure]
+Arguments=
+Enabled=false
+Environment=
+Executable=
+Type=1
+
+[CustomBuildSystem][BuildConfig3][ToolInstall]
+Arguments=
+Enabled=false
+Environment=
+Executable=
+Type=2
+
+[CustomBuildSystem][BuildConfig3][ToolPrune]
+Arguments=
+Enabled=false
+Environment=
+Executable=
+Type=4
+
 [CustomDefinesAndIncludes][ProjectPath0]
 Path=.
 parseAmbiguousAsCPP=true
@@ -99,9 +177,9 @@ enter=
 [CustomDefinesAndIncludes][ProjectPath0][Includes]
 1=${src}/sql/
 2=${src}/include/
-3=${src}/include/mysql/
-4=${build}/include/
-5=${src}/storage/innobase/include/
+3=${build}/include/
+4=${src}/storage/innobase/include/
+5=${src}/include/mysql/
 
 [Defines And Includes][Compiler]
 Name=GCC
@@ -109,7 +187,7 @@ Path=gcc
 Type=GCC
 
 [Filters]
-size=49
+size=99
 
 [Filters][0]
 inclusive=0
@@ -213,17 +291,17 @@ targets=2
 
 [Filters][27]
 inclusive=0
-pattern=/plugin
+pattern=/storage/archive
 targets=2
 
 [Filters][28]
 inclusive=0
-pattern=/storage/archive
+pattern=/storage/blackhole
 targets=2
 
 [Filters][29]
 inclusive=0
-pattern=/storage/blackhole
+pattern=/storage/cassandra
 targets=2
 
 [Filters][3]
@@ -233,52 +311,52 @@ targets=2
 
 [Filters][30]
 inclusive=0
-pattern=/storage/cassandra
+pattern=/storage/connect
 targets=2
 
 [Filters][31]
 inclusive=0
-pattern=/storage/connect
+pattern=/storage/csv
 targets=2
 
 [Filters][32]
 inclusive=0
-pattern=/storage/csv
+pattern=/storage/example
 targets=2
 
 [Filters][33]
 inclusive=0
-pattern=/storage/example
+pattern=/storage/federated
 targets=2
 
 [Filters][34]
 inclusive=0
-pattern=/storage/federated
+pattern=/storage/federatedx
 targets=2
 
 [Filters][35]
 inclusive=0
-pattern=/storage/federatedx
+pattern=/storage/heap
 targets=2
 
 [Filters][36]
 inclusive=0
-pattern=/storage/heap
+pattern=/storage/maria
 targets=2
 
 [Filters][37]
 inclusive=0
-pattern=/storage/maria
+pattern=/storage/mroonga
 targets=2
 
 [Filters][38]
 inclusive=0
-pattern=/storage/mroonga
+pattern=/storage/myisam
 targets=2
 
 [Filters][39]
 inclusive=0
-pattern=/storage/myisam
+pattern=/storage/myisammrg
 targets=2
 
 [Filters][4]
@@ -288,47 +366,52 @@ targets=2
 
 [Filters][40]
 inclusive=0
-pattern=/storage/myisammrg
+pattern=/storage/oqgraph
 targets=2
 
 [Filters][41]
 inclusive=0
-pattern=/storage/oqgraph
+pattern=/storage/perfschema
 targets=2
 
 [Filters][42]
 inclusive=0
-pattern=/storage/perfschema
+pattern=/storage/sequence
 targets=2
 
 [Filters][43]
 inclusive=0
-pattern=/storage/sequence
+pattern=/storage/sphinx
 targets=2
 
 [Filters][44]
 inclusive=0
-pattern=/storage/sphinx
+pattern=/storage/spider
 targets=2
 
 [Filters][45]
 inclusive=0
-pattern=/storage/spider
+pattern=/storage/test_sql_discovery
 targets=2
 
 [Filters][46]
 inclusive=0
-pattern=/storage/test_sql_discovery
+pattern=/storage/tokudb
 targets=2
 
 [Filters][47]
 inclusive=0
-pattern=/storage/tokudb
+pattern=/storage/xtradb
 targets=2
 
 [Filters][48]
 inclusive=0
-pattern=/storage/xtradb
+pattern=/storage/rocksdb
+targets=2
+
+[Filters][49]
+inclusive=0
+pattern=/libmysqld
 targets=2
 
 [Filters][5]
@@ -336,9 +419,109 @@ inclusive=0
 pattern=.svn
 targets=2
 
+[Filters][50]
+inclusive=0
+pattern=/extra
+targets=2
+
+[Filters][51]
+inclusive=0
+pattern=/libservices
+targets=2
+
+[Filters][52]
+inclusive=0
+pattern=/debian
+targets=2
+
+[Filters][53]
+inclusive=0
+pattern=/mysys_ssl
+targets=2
+
+[Filters][54]
+inclusive=0
+pattern=/pcre
+targets=2
+
+[Filters][55]
+inclusive=0
+pattern=/randgen
+targets=2
+
+[Filters][56]
+inclusive=0
+pattern=/win
+targets=2
+
+[Filters][57]
+inclusive=0
+pattern=/wsrep
+targets=2
+
+[Filters][58]
+inclusive=0
+pattern=/zlib
+targets=2
+
+[Filters][59]
+inclusive=0
+pattern=/vio
+targets=2
+
 [Filters][6]
 inclusive=0
 pattern=_svn
+targets=2
+
+[Filters][60]
+inclusive=0
+pattern=/BUILD
+targets=2
+
+[Filters][61]
+inclusive=0
+pattern=/Docs
+targets=2
+
+[Filters][62]
+inclusive=0
+pattern=/client
+targets=2
+
+[Filters][63]
+inclusive=0
+pattern=/man
+targets=2
+
+[Filters][64]
+inclusive=0
+pattern=/plugin/audit_null
+targets=2
+
+[Filters][65]
+inclusive=0
+pattern=/plugin/auth_dialog
+targets=2
+
+[Filters][66]
+inclusive=0
+pattern=/plugin/auth_ed25519
+targets=2
+
+[Filters][67]
+inclusive=0
+pattern=/plugin/auth_examples
+targets=2
+
+[Filters][68]
+inclusive=0
+pattern=/plugin/auth_gssapi
+targets=2
+
+[Filters][69]
+inclusive=0
+pattern=/plugin/auth_pam
 targets=2
 
 [Filters][7]
@@ -346,14 +529,159 @@ inclusive=0
 pattern=SCCS
 targets=2
 
+[Filters][70]
+inclusive=0
+pattern=/plugin/auth_pipe
+targets=2
+
+[Filters][71]
+inclusive=0
+pattern=/plugin/auth_socket
+targets=2
+
+[Filters][72]
+inclusive=0
+pattern=/plugin/aws_key_management
+targets=2
+
+[Filters][73]
+inclusive=0
+pattern=/plugin/cracklib_password_check
+targets=2
+
+[Filters][74]
+inclusive=0
+pattern=/plugin/daemon_example
+targets=2
+
+[Filters][75]
+inclusive=0
+pattern=/plugin/debug_key_management
+targets=2
+
+[Filters][76]
+inclusive=0
+pattern=/plugin/example_key_management
+targets=2
+
+[Filters][77]
+inclusive=0
+pattern=/plugin/feedback
+targets=2
+
+[Filters][78]
+inclusive=0
+pattern=/plugin/file_key_management
+targets=2
+
+[Filters][79]
+inclusive=0
+pattern=/plugin/fulltext
+targets=2
+
 [Filters][8]
 inclusive=0
 pattern=_darcs
 targets=2
 
+[Filters][80]
+inclusive=0
+pattern=/plugin/handler_socket
+targets=2
+
+[Filters][81]
+inclusive=0
+pattern=/plugin/locale_info
+targets=2
+
+[Filters][82]
+inclusive=0
+pattern=/plugin/metadata_lock_info
+targets=2
+
+[Filters][83]
+inclusive=0
+pattern=/plugin/qc_info
+targets=2
+
+[Filters][84]
+inclusive=0
+pattern=/plugin/query_response_time
+targets=2
+
+[Filters][85]
+inclusive=0
+pattern=/plugin/semisync
+targets=2
+
+[Filters][86]
+inclusive=0
+pattern=/plugin/server_audit
+targets=2
+
+[Filters][87]
+inclusive=0
+pattern=/plugin/simple_password_check
+targets=2
+
+[Filters][88]
+inclusive=0
+pattern=/plugin/sql_errlog
+targets=2
+
+[Filters][89]
+inclusive=0
+pattern=/plugin/user_variables
+targets=2
+
 [Filters][9]
 inclusive=0
 pattern=.hg
+targets=2
+
+[Filters][90]
+inclusive=0
+pattern=/plugin/userstat
+targets=2
+
+[Filters][91]
+inclusive=0
+pattern=/plugin/win_auth_client
+targets=2
+
+[Filters][92]
+inclusive=0
+pattern=/plugin/wsrep_info
+targets=2
+
+[Filters][93]
+inclusive=0
+pattern=/run
+targets=2
+
+[Filters][94]
+inclusive=0
+pattern=/sql-bench
+targets=2
+
+[Filters][95]
+inclusive=0
+pattern=/strings
+targets=2
+
+[Filters][96]
+inclusive=0
+pattern=/support-files
+targets=2
+
+[Filters][97]
+inclusive=0
+pattern=/unittest
+targets=2
+
+[Filters][98]
+inclusive=0
+pattern=/tests
 targets=2
 
 [Launch]
@@ -384,7 +712,7 @@ Name=normal
 Type=Native Application
 
 [Launch][Launch Configuration 1][Data]
-Arguments=--defaults-file=mysqld.cnf --debug-gdb
+Arguments=--defaults-file=mysqld.cnf --debug-gdb --plugin-load=versioning
 Dependencies=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x00)
 Dependency Action=Nothing
 EnvironmentGroup=
