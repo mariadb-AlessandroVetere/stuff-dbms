@@ -30,11 +30,12 @@ export RUBYLIB=${proj_dir}/innodb_ruby/lib
 alias ispace=innodb_space
 alias ilog=innodb_log
 
+mtr_opts="--tail-lines=0"
 mtr()
 {(
     mkdir -p "$log_dir"
     cd "$log_dir"
-    exec mysql-test-run --force --max-test-fail=0 --suite-timeout=1440 --tail-lines=0 "$@" 2>&1 | tee -a mtr.log
+    exec mysql-test-run --force --max-test-fail=0 --suite-timeout=1440 ${mtr_opts} "$@" 2>&1 | tee -a mtr.log
 )}
 
 alias mtrh="mysql-test-run --help | less"
@@ -151,10 +152,9 @@ attach()
 }
 
 prepare()
-{
-    cd ~
-    mkdir -p build
-    cd build
+{(
+    mkdir -p "${build}"
+    cd "${build}"
     unset plugins
     if [ -f ~/plugin_exclude ]
     then
@@ -165,36 +165,52 @@ prepare()
         done < ~/plugin_exclude
     fi
     cmake-ln \
-        -D CMAKE_INSTALL_PREFIX:STRING=${opt} \
-        -D CMAKE_BUILD_TYPE:STRING=Debug \
-        -D CMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0" \
-        -D CMAKE_C_FLAGS_DEBUG:STRING="-g -O0" \
-        -D SECURITY_HARDENED:BOOL=FALSE \
-        -D WITH_INNOBASE_STORAGE_ENGINE:BOOL=ON \
-        -D WITH_UNIT_TESTS:BOOL=OFF \
-        -D WITH_CSV_STORAGE_ENGINE:BOOL=OFF \
-        -D WITH_WSREP:BOOL=OFF \
+        -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
+        -DCMAKE_BUILD_TYPE:STRING=Debug \
+        -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0" \
+        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0" \
+        -DSECURITY_HARDENED:BOOL=FALSE \
+        -DWITH_UNIT_TESTS:BOOL=OFF \
+        -DWITH_CSV_STORAGE_ENGINE:BOOL=OFF \
+        -DWITH_WSREP:BOOL=OFF \
         $plugins \
         "$@" \
         ../src
-}
+)}
 export -f prepare
 
-relprepare()
-{
-    mkdir -p build-rel
-    cd build-rel
-    cmake-ln \
-        -D CMAKE_INSTALL_PREFIX:STRING=${opt} \
-        -D BUILD_CONFIG:STRING=mysql_release \
-        -D WITH_JEMALLOC:BOOL=ON \
-        -D WITH_WSREP:BOOL=OFF \
-        -D CMAKE_CXX_FLAGS_RELEASE:STRING="-g" \
-        -D CMAKE_C_FLAGS_RELEASE:STRING="-g" \
-        -D WITH_INNOBASE_STORAGE_ENGINE:BOOL=ON \
+rel_opts()
+{(
+    build="${build}-rel"
+    cmd="$1"
+    shift
+    "$cmd"
         "$@" \
-        ../src
+        -DBUILD_CONFIG:STRING=mysql_release \
+        -DWITH_JEMALLOC:BOOL=ON \
+        -DCMAKE_CXX_FLAGS_RELEASE:STRING="-g" \
+        -DCMAKE_C_FLAGS_RELEASE:STRING="-g" \
+        -DSECURITY_HARDENED:BOOL=FALSE
+)}
+export -f rel_opts
+
+ninja_opts()
+{
+    cmd="$1"
+    shift
+    "$cmd" \
+        "$@" \
+        -G Ninja \
+        -DCMAKE_C_COMPILER=/usr/bin/clang \
+        -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
+        -D_CMAKE_TOOLCHAIN_PREFIX=llvm- \
+        -D_CMAKE_TOOLCHAIN_SUFFIX=-5.0
 }
+export -f ninja_opts
+
+alias relprepare="rel_opts prepare"
+alias nprepare="ninja_opts prepare"
+alias nrelprepare="ninja_opts rel_opts prepare"
 
 cmakemin()
 {
@@ -219,12 +235,21 @@ export -f git
 
 make()
 {
+    recurse="$1"
+    if [ "$recurse" = norecurse ]
+    then
+        shift
+    fi
     if [ -f Makefile ]
     then
         $(which make) "$@"
-    else (
+    elif [ -f build.ninja ]
+    then
+        $(which ninja) "$@"
+    elif [ "$recurse" != norecurse ]
+    then (
         cd "$build"
-        $(which make) "$@"
+        make norecurse "$@"
     )
     fi
 }
@@ -252,4 +277,9 @@ port()
     else
         sed -nEe '/^\s*port\s*=\s*[[:digit:]]+/ { s/.+=\s*([[:digit:]]+)\s*$/\1/; p; }' ~/mysqld.cnf
     fi
+}
+
+upatch()
+{
+    patch "$@" < /tmp/u.diff
 }

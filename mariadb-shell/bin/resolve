@@ -3,13 +3,13 @@ opt=$1
 
 while true
 do
-    src=(`git diff --name-only|uniq`)
+    src=(`git diff --name-only .|uniq`)
     [ -n "${src[0]}" ] ||
         break
 
     if grep -q '^<<<<<<< ' "${src[@]}"
     then
-      emacs "${src[@]}" ||
+      (cd ~/src; emacs "${src[@]}") ||
           break
 
       ([ "$opt" = only ] || grep -q '^<<<<<<< ' "${src[@]}") &&
