@@ -164,6 +164,11 @@ prepare()
                 plugins="$plugins -D$a=NO"
         done < ~/plugin_exclude
     fi
+    unset cclauncher
+    if [ -x $(which ccache) ]
+    then
+	cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache"
+    fi
     cmake-ln \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Debug \
@@ -173,6 +178,7 @@ prepare()
         -DWITH_UNIT_TESTS:BOOL=OFF \
         -DWITH_CSV_STORAGE_ENGINE:BOOL=OFF \
         -DWITH_WSREP:BOOL=OFF \
+        $cclauncher \
         $plugins \
         "$@" \
         ../src
@@ -281,5 +287,7 @@ port()
 
 upatch()
 {
-    patch "$@" < /tmp/u.diff
+    arg=${1:-"-p1"}
+    shift
+    patch "$arg" "$@" < /tmp/u.diff
 }
