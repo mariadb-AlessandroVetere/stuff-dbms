@@ -167,13 +167,14 @@ prepare()
     unset cclauncher
     if [ -x $(which ccache) ]
     then
-	cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache"
+        cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache"
     fi
     cmake-ln \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Debug \
         -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0" \
         -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0" \
+        -DWARN_MODE:STRING="late" \
         -DSECURITY_HARDENED:BOOL=FALSE \
         -DWITH_UNIT_TESTS:BOOL=OFF \
         -DWITH_CSV_STORAGE_ENGINE:BOOL=OFF \
@@ -190,7 +191,7 @@ rel_opts()
     build="${build}-rel"
     cmd="$1"
     shift
-    "$cmd"
+    "$cmd" \
         "$@" \
         -DBUILD_CONFIG:STRING=mysql_release \
         -DWITH_JEMALLOC:BOOL=ON \
@@ -206,7 +207,7 @@ ninja_opts()
     shift
     "$cmd" \
         "$@" \
-        -G Ninja \
+        -GNinja \
         -DCMAKE_C_COMPILER=/usr/bin/clang \
         -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
         -D_CMAKE_TOOLCHAIN_PREFIX=llvm- \
@@ -214,9 +215,23 @@ ninja_opts()
 }
 export -f ninja_opts
 
+o1_opts()
+{(
+    build="${build}"
+    cmd="$1"
+    shift
+    "$cmd" \
+        "$@" \
+        -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O1" \
+        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O1"
+)}
+export -f o1_opts
+
+
 alias relprepare="rel_opts prepare"
 alias nprepare="ninja_opts prepare"
 alias nrelprepare="ninja_opts rel_opts prepare"
+alias o1prepare="ninja_opts o1_opts prepare"
 
 cmakemin()
 {
