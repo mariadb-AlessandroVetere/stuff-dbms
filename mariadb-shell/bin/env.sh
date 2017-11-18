@@ -35,13 +35,13 @@ mtr()
 {(
     mkdir -p "$log_dir"
     cd "$log_dir"
-    exec mysql-test-run --force --max-test-fail=0 --suite-timeout=1440 ${mtr_opts} "$@" 2>&1 | tee -a mtr.log
+    exec mysql-test-run --force --max-test-fail=0 --suite-timeout=1440 --mysqld=--silent-startup ${mtr_opts} "$@" 2>&1 | tee -a mtr.log
 )}
 
 alias mtrh="mysql-test-run --help | less"
 alias mtrx="mtr --extern socket=${build}/mysql-test/var/tmp/mysqld.1.sock"
-alias mtrb="mtr --big-test --big-test"
-alias mtrf="mtr --big-test"
+alias mtrf="mtr --big-test --skip-test=main.sum_distinct-big"
+alias mtrb="mtrf --big-test"
 alias mtrm="mtr --suite=main"
 alias mtrv="mtr --suite=versioning"
 alias mtrg="mtr --manual-gdb"
@@ -96,7 +96,7 @@ run()
         cd "${bush_dir}"
         defaults=mysqld.cnf
     fi
-    exec "${opt}/bin/mysqld" "--defaults-file=$defaults" --debug-gdb "$@"
+    exec "${opt}/bin/mysqld" "--defaults-file=$defaults" --debug-gdb --silent-startup "$@"
 )}
 export -f run
 
@@ -128,7 +128,7 @@ rund()
         cd "${bush_dir}"
         defaults=mysqld.cnf
     fi
-    exec gdb -q --args "${opt}/bin/mysqld" "--defaults-file=$defaults" --debug-gdb "$@"
+    exec gdb -q --args "${opt}/bin/mysqld" "--defaults-file=$defaults" --debug-gdb --silent-startup "$@"
 )}
 export -f rund
 
@@ -172,8 +172,8 @@ prepare()
     cmake-ln \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Debug \
-        -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0" \
-        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0" \
+        -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type" \
+        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type" \
         -DWARN_MODE:STRING="late" \
         -DSECURITY_HARDENED:BOOL=FALSE \
         -DWITH_UNIT_TESTS:BOOL=OFF \
