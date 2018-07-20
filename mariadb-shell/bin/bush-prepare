@@ -14,8 +14,8 @@ EOF
 
 me=$(basename "$0")
 
-optstring_long="update,project,links,skel,refs,source-from:,source:,clone-from:,clone:,verbose,help"
-optstring_short="uplkrs:c:vh"
+optstring_long="update,project,links,skel,copy-from:,copy:,clone-from:,clone:,force-cleanup,force,verbose,help"
+optstring_short="uplkc:C:Fvh"
 
 opts=$(getopt -o "${optstring_short}" --long "${optstring_long}" --name "$0" -- "$@") ||
     exit $?
@@ -26,9 +26,9 @@ selection=false
 select_project=false
 select_links=false
 select_skel=false
-select_refs=false
-unset source_from
+copy_from=trunk
 clone_from="git@github.com:tempesta-tech/mariadb"
+force_cleanup=false
 unset verbose_on
 unset verbose_off
 unset verbose
@@ -37,12 +37,16 @@ verbose_echo="true"
 while true
 do
     case "$1" in
-        -s|--source-from|--source)
-            source_from=$2
+        -c|--copy-from|--copy)
+            copy_from=$2
             shift 2;;
-        -c|--clone-from|--clone)
-            clone_from=$2
+        -C|--clone-from|--clone)
+            [ "$2" -a "$2" != '-' ] &&
+                clone_from=$2
             shift 2;;
+        -F|--force-cleanup|--force)
+            force_cleanup=true
+            shift;;
         -u|--update)
             update=true
             shift;;
@@ -61,11 +65,6 @@ do
             selection=true
             select_skel=true
             shift;;
-        -r|--refs)
-            update=true
-            selection=true
-            select_refs=true
-            shift;;
         -v|--verbose)
             verbose_on="set -x"
             verbose_off="set +x"
@@ -74,13 +73,13 @@ do
             shift;;
         -h|--help)
             cat <<EOF
-        -s|--source-from|--source   Local repo
-        -c|--clone-from|--clone     Remote repo
-        -u|--update                 Update files even if exist
+        -c|--copy-from|--copy   Local repo
+        -C|--clone-from|--clone     Remote repo
+        -u|--update                 Update files even if repo exists
+        -F|--force-clenaup|--force  Delete everything in existing repo!
         -p|--project                Update project
         -l|--links                  Update links
         -k|--skel                   Update skel
-        -r|--refs                   Update Git refs
         -v|--verbose                Work verbosely
         -h|--help                   This help
 
@@ -123,8 +122,14 @@ data=$homepath/data
 
 if [ "$update" = false -a -e "$m" ]
 then
-    echo "$me: $m exists!" >&2
-    exit 1
+    if [ -d "$m" -a "$force_cleanup" = true ]
+    then
+        echo "Deleting everything in ${m}!"
+        rm -rf "$m"
+    else
+        echo "$me: $m exists!" >&2
+        exit 1
+    fi
 fi
 
 trap debug
@@ -174,19 +179,12 @@ instantiate_bash()
 
 prepare_source()
 {
-    if [ -z "${source_from}" ]
+    if [ -z "${copy_from}" ]
     then
         $verbose git clone "${clone_from}" src
     else
-        $verbose rsync -aP "${source_from}/" src
+        $verbose rsync -aP "${homepath}/${copy_from}/src/" src
     fi
-}
-
-make_refs()
-{
-    echo "ref: refs/heads/natsys/trunk" > 'src/.git/refs/heads/trunk'
-    echo "ref: refs/heads/natsys/base" > 'src/.git/refs/heads/base'
-    echo "Wrote branch refs in src/.git/refs/heads/"
 }
 
 copy_skel()
@@ -225,19 +223,9 @@ then
     prepare_source
 fi
 
-if ! $selection || $select_refs
-then
-    make_refs
-fi
-
 if ! $selection || $select_skel
 then
     copy_skel
-fi
-
-if ! $update
-then
-    $verbose prepare
 fi
 
 if ! $selection || $select_project

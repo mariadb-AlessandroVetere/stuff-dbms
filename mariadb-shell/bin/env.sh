@@ -24,6 +24,9 @@ export log_dir="${bush_dir}/log"
 PATH="${opt}/bin:${proj_dir}/test:${opt}/scripts:${opt}/mysql-test:${opt}/sql-bench:${bush_dir}:${bush_dir}/bin:${bush_dir}/issues:${PATH}"
 CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src}/storage/innobase"
 
+export MYSQL_UNIX_PORT="${bush_dir}/run/mysqld.sock"
+export MTR_BINDIR="$build"
+
 # innodb_ruby setup
 PATH="${proj_dir}/innodb_ruby/bin:${PATH}"
 export RUBYLIB=${proj_dir}/innodb_ruby/lib
@@ -34,16 +37,35 @@ mtr_opts="--tail-lines=0"
 mtr()
 {(
     mkdir -p "$log_dir"
-    cd "$log_dir"
-    exec mysql-test-run --force --max-test-fail=0 --suite-timeout=1440 --mysqld=--silent-startup ${mtr_opts} "$@" 2>&1 | tee -a mtr.log
+    if [ -x ./mysql-test-run.pl ]
+    then
+        mtr_script=./mysql-test-run.pl
+    else
+        mtr_script=mysql-test-run
+        cd "$log_dir"
+    fi
+    unset exclude_opts
+    [ -f ~/tests_exclude ] &&
+        exclude_opts="--skip-test-list=${HOME}/tests_exclude"
+    [ -f mtr.log ] &&
+        mv mtr.log $(date '+mtr_%Y%m%d_%H%M%S.log')
+    exec $mtr_script \
+        --force \
+        --max-test-fail=0 \
+        --suite-timeout=1440 \
+        --mysqld=--silent-startup \
+        ${mtr_opts} \
+        ${exclude_opts} \
+        "$@" 2>&1 | tee -a mtr.log
 )}
 
 alias mtrh="mysql-test-run --help | less"
-alias mtrx="mtr --extern socket=${build}/mysql-test/var/tmp/mysqld.1.sock"
-alias mtrf="mtr --big-test --skip-test=main.sum_distinct-big"
+alias mtrx="mtr --extern socket=${MYSQL_UNIX_PORT}"
+alias mtrx1="mtr --extern socket=${build}/mysql-test/var/tmp/mysqld.1.sock"
+alias mtrf="mtr --big-test --fast --parallel=4"
 alias mtrb="mtrf --big-test"
 alias mtrm="mtr --suite=main"
-alias mtrv="mtr --suite=versioning"
+alias mtrv="mtr --suite=versioning --fast --reorder --parallel=4"
 alias mtrg="mtr --manual-gdb"
 alias mtrvg="mtr --manual-gdb --suite=versioning"
 alias myh="mysqld --verbose --help | less"
@@ -52,7 +74,7 @@ br()
 {(
     a=$1
     shift
-    git branch --all --list "*/${a}/*" "$@" | head -n1
+    git branch --all --list "*${a}*" "$@" | head -n1
 )}
 
 gs()
@@ -65,7 +87,12 @@ gsl() { gs "$@" | less; }
 
 mtrval()
 {
-    mtr --valgrind-mysqld --valgrind-option="--leak-check=no --track-origins=yes --log-file=${log_dir}/badmem.log" "$@"
+    mtr --valgrind-mysqld \
+        --valgrind-option=--leak-check=no \
+        --valgrind-option=--track-origins=yes \
+        --valgrind-option=--num-callers=50 \
+        --valgrind-option=--log-file=${log_dir}/badmem.log \
+        "$@"
 }
 
 mysql_client=$(which mysql)
@@ -84,7 +111,6 @@ mysqlt()
     "$mysql_client" -S "${build}/mysql-test/var/tmp/mysqld.1.sock" -u root "$db" "$@"
 }
 
-export MYSQL_UNIX_PORT="${bush_dir}/run/mysqld.sock"
 
 run()
 {(
@@ -120,6 +146,13 @@ export -f run
 
 rund()
 {(
+    if [ "$1" = -start ]
+    then
+        opt_run="-ex start"
+        shift
+    else
+        opt_run="-ex run"
+    fi
     if [ -n "$1" -a -f "$1" ]
     then
         defaults="$1"
@@ -128,16 +161,52 @@ rund()
         cd "${bush_dir}"
         defaults=mysqld.cnf
     fi
-    exec gdb -q --args "${opt}/bin/mysqld" "--defaults-file=$defaults" --debug-gdb --silent-startup "$@"
+    exec gdb -q $opt_run --args "${opt}/bin/mysqld" "--defaults-file=$defaults" --plugin-maturity=experimental --plugin-load=test_versioning --debug-gdb --silent-startup "$@"
 )}
 export -f rund
 
 runt()
 {(
     cd "${src}/mysql-test"
+
     exec gdb -q --args "${opt}/bin/mysqld" --defaults-group-suffix=.1 --defaults-file=${build}/mysql-test/var/my.cnf --log-output=file --gdb --core-file --loose-debug-sync-timeout=300 --debug --debug-gdb "$@"
 )}
 export -f runt
+
+binlog()
+{(
+    local run_gdb=""
+    if [ "$1" = "-gdb" ]
+    then
+        run_gdb="gdb -q -ex run --args"
+        shift
+    fi
+
+    exec $run_gdb "${opt}/bin/mysqlbinlog" "--defaults-file=${defaults}" \
+        --local-load="${build}/var/tmp" -v "$@"
+)}
+export -f binlog
+
+dump()
+{(
+    local run_gdb=""
+    if [ "$1" = "-gdb" ]
+    then
+        run_gdb="gdb -q -ex run --args"
+        shift
+    fi
+    db=${1:-test}
+    shift
+    exec $run_gdb "$(which mysqldump)" "--defaults-file=${defaults}" "$db" "$@"
+)}
+export -f dump
+
+gdbt()
+{(
+    suffix=${1:-1}
+    exec gdb -q -cd "${src}/mysql-test" -x "${build}/mysql-test/var/tmp/gdbinit.mysqld.${suffix}" -ex run "${build}/sql/mysqld"
+)}
+export -f gdbt
 
 init()
 {(
@@ -149,6 +218,22 @@ export -f init
 attach()
 {
     gdb-attach ${opt}/bin/mysqld
+}
+
+breaks()
+{
+    while read place text
+    do
+        place=$(basename "${place%:}")
+        echo "# ${text}"
+        echo "b $place"
+        if [ "$1" ]
+        then
+            echo "commands"
+            echo "    $1"
+            echo "end"
+        fi
+    done
 }
 
 prepare()
@@ -169,16 +254,17 @@ prepare()
     then
         cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache"
     fi
-    cmake-ln \
+    cmake-ln -Wno-dev \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Debug \
-        -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type" \
-        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type" \
+        -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type $CFLAGS" \
+        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type $CFLAGS" \
         -DWARN_MODE:STRING="late" \
         -DSECURITY_HARDENED:BOOL=FALSE \
         -DWITH_UNIT_TESTS:BOOL=OFF \
         -DWITH_CSV_STORAGE_ENGINE:BOOL=OFF \
         -DWITH_WSREP:BOOL=OFF \
+        -DWITH_MARIABACKUP:BOOL=OFF \
         $cclauncher \
         $plugins \
         "$@" \
@@ -215,6 +301,22 @@ ninja_opts()
 }
 export -f ninja_opts
 
+emb_opts()
+{
+    cmd="$1"
+    shift
+    "$cmd" \
+        "$@" \
+        -GNinja \
+        -DCMAKE_C_COMPILER=/usr/bin/clang \
+        -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
+        -DWITH_UNIT_TESTS:BOOL=ON \
+        -DWITH_CSV_STORAGE_ENGINE:BOOL=ON \
+        -DWITH_WSREP:BOOL=ON \
+        -DWITH_EMBEDDED_SERVER:BOOL=ON
+}
+export -f emb_opts
+
 o1_opts()
 {(
     build="${build}"
@@ -232,6 +334,7 @@ alias relprepare="rel_opts prepare"
 alias nprepare="ninja_opts prepare"
 alias nrelprepare="ninja_opts rel_opts prepare"
 alias o1prepare="ninja_opts o1_opts prepare"
+alias embprepare="emb_opts prepare"
 
 cmakemin()
 {
@@ -305,4 +408,22 @@ upatch()
     arg=${1:-"-p1"}
     shift
     patch "$arg" "$@" < /tmp/u.diff
+}
+
+grep_cmake()
+{
+    grep -i "$@" "${build}/CMakeCache.txt"
+}
+
+error()
+{
+    local err_h="${build}/include/mysqld_error.h"
+    grep '^#define' "$err_h" |
+    if [ "$1" ]
+    then
+        grep "$@" "$err_h"
+    else
+        cat
+    fi |
+    while read a b c; do echo "$b"; done
 }

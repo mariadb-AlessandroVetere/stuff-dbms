@@ -9,14 +9,17 @@ do
 
     if grep -q '^<<<<<<< ' "${src[@]}"
     then
-      (cd ~/src; emacs "${src[@]}") ||
-          break
+        (cd ~/src; emacs "${src[@]}") ||
+            break
 
-      ([ "$opt" = only ] || grep -q '^<<<<<<< ' "${src[@]}") &&
-          break
+        ([ "$opt" = only ] || grep -q '^<<<<<<< ' "${src[@]}") &&
+            break
 
-      make -j8 ||
-          break
+        if [ "$opt" = full ]
+        then
+            make -j8 ||
+                break
+        fi
     fi
 
     git add "${src[@]}" ||
