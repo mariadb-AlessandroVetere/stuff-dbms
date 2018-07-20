@@ -3,9 +3,15 @@ reconf()
     source ~/.bashrc
 }
 
-devshell()
+bush()
 {(
     m=$HOME/src/mariadb/$1
+    if [ ! -d "$m" ]
+    then
+        echo "Creating new bush: $m"
+        bush-prepare "$1" ||
+            return $?
+    fi
     HOME="$m"
     cd "$m"
 
@@ -13,7 +19,9 @@ devshell()
         exec screen -S $1
 )}
 
-alias midenok="devshell midenok"
-alias trunk="devshell trunk"
-alias 10.2="devshell 10.2"
+alias midenok="bush midenok"
+alias trunk="bush trunk"
+alias review="bush review"
+alias upstream="bush upstream"
+alias 10.2="bush 10.2"
 
