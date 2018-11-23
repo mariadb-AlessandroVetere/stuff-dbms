@@ -171,12 +171,6 @@ make_links()
     echo "Made links"
 }
 
-instantiate_bash()
-{
-    instantiate bashrc.in .bashrc
-    echo "Wrote .bashrc"
-}
-
 prepare_source()
 {
     if [ -z "${copy_from}" ]
@@ -207,11 +201,6 @@ then
 fi
 
 HOME=$m
-
-if ! $selection || $select_skel
-then
-    instantiate_bash
-fi
 
 set +e
 source .bashrc || true

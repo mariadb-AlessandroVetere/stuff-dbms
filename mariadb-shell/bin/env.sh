@@ -27,6 +27,8 @@ CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src
 export MYSQL_UNIX_PORT="${bush_dir}/run/mysqld.sock"
 export MTR_BINDIR="$build"
 
+ulimit -c 0
+
 # innodb_ruby setup
 PATH="${proj_dir}/innodb_ruby/bin:${PATH}"
 export RUBYLIB=${proj_dir}/innodb_ruby/lib
@@ -65,7 +67,10 @@ alias mtrx1="mtr --extern socket=${build}/mysql-test/var/tmp/mysqld.1.sock"
 alias mtrf="mtr --big-test --fast --parallel=4"
 alias mtrb="mtrf --big-test"
 alias mtrm="mtr --suite=main"
-alias mtrv="mtr --suite=versioning --fast --reorder --parallel=4"
+alias mtrz="mtr --fast --reorder --parallel=4"
+alias mtrv="mtrz --suite=versioning"
+alias mtrp="mtrz --suite=period"
+alias mtrpg="mtr --manual-gdb --suite=period"
 alias mtrg="mtr --manual-gdb"
 alias mtrvg="mtr --manual-gdb --suite=versioning"
 alias myh="mysqld --verbose --help | less"
@@ -87,29 +92,38 @@ gsl() { gs "$@" | less; }
 
 mtrval()
 {
+    local supp=~/mtr.supp
+    local supp_opt=''
+    [ -f "$supp" ] &&
+        supp_opt=--valgrind-option=--suppressions=$supp
     mtr --valgrind-mysqld \
         --valgrind-option=--leak-check=no \
         --valgrind-option=--track-origins=yes \
         --valgrind-option=--num-callers=50 \
         --valgrind-option=--log-file=${log_dir}/badmem.log \
+        $supp_opt \
         "$@"
 }
 
 mysql_client=$(which mysql)
 
 mysql()
-{
+{(
     db=${1:-test}
     shift
+    [ -x "`which most`" ] &&
+        export PAGER=most
     "$mysql_client" -S "${bush_dir}/run/mysqld.sock" -u root "$db" "$@"
-}
+)}
 
 mysqlt()
-{
+{(
     db=${1:-mtr}
     shift
+    [ -x "`which most`" ] &&
+        export PAGER=most
     "$mysql_client" -S "${build}/mysql-test/var/tmp/mysqld.1.sock" -u root "$db" "$@"
-}
+)}
 
 
 run()
@@ -168,8 +182,9 @@ export -f rund
 runt()
 {(
     cd "${src}/mysql-test"
-
-    exec gdb -q --args "${opt}/bin/mysqld" --defaults-group-suffix=.1 --defaults-file=${build}/mysql-test/var/my.cnf --log-output=file --gdb --core-file --loose-debug-sync-timeout=300 --debug --debug-gdb "$@"
+    suffix=${1:-1}
+    shift
+    exec gdb -q --args "${opt}/bin/mysqld" --defaults-group-suffix=.$suffix --defaults-file=${build}/mysql-test/var/my.cnf --log-output=file --gdb --core-file --loose-debug-sync-timeout=300 --debug --debug-gdb "$@"
 )}
 export -f runt
 
@@ -208,12 +223,25 @@ gdbt()
 )}
 export -f gdbt
 
-init()
+initdb()
 {(
-    cd "${bush_dir}"
-    exec init.sh
+    data=${1:-./data}
+    if [ -z "$1" ]
+    then
+        cd "${bush_dir}"
+        mkdir -p run
+    fi
+    data=$(readlink -f "${data}")
+    if [ -e "${data}" ]
+    then
+        echo "${data} already exists!" >&2
+        exit 100
+    fi
+    mkdir -p "${data}"
+    ln -s "${bush_dir}/run" "${data}/run"
+    mysql_install_db --basedir="${opt}" --datadir="${data}" --defaults-file="${defaults}"
 )}
-export -f init
+export -f initdb
 
 attach()
 {
@@ -249,6 +277,12 @@ prepare()
                 plugins="$plugins -D$a=NO"
         done < ~/plugin_exclude
     fi
+    unset compiler_flags
+    if [ -f ~/compiler_flags ]
+    then
+        compiler_flags="$(cat ~/compiler_flags)"
+        compiler_flags="$(echo $compiler_flags)"
+    fi
     unset cclauncher
     if [ -x $(which ccache) ]
     then
@@ -257,14 +291,15 @@ prepare()
     cmake-ln -Wno-dev \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Debug \
-        -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type $CFLAGS" \
-        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type $CFLAGS" \
+        -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type -Wno-deprecated-register $compiler_flags $CFLAGS" \
+        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type -Wno-deprecated-register $compiler_flags $CFLAGS" \
         -DWARN_MODE:STRING="late" \
         -DSECURITY_HARDENED:BOOL=FALSE \
         -DWITH_UNIT_TESTS:BOOL=OFF \
         -DWITH_CSV_STORAGE_ENGINE:BOOL=OFF \
         -DWITH_WSREP:BOOL=OFF \
         -DWITH_MARIABACKUP:BOOL=OFF \
+        -DWITH_SAFEMALLOC:BOOL=OFF \
         $cclauncher \
         $plugins \
         "$@" \
@@ -288,17 +323,18 @@ rel_opts()
 export -f rel_opts
 
 ninja_opts()
-{
+{(
     cmd="$1"
+    export CFLAGS="${CFLAGS:+ $CFLAGS}-fdebug-macro"
     shift
     "$cmd" \
         "$@" \
         -GNinja \
-        -DCMAKE_C_COMPILER=/usr/bin/clang \
-        -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
+        -DCMAKE_C_COMPILER=/usr/bin/clang-7 \
+        -DCMAKE_CXX_COMPILER=/usr/bin/clang++-7 \
         -D_CMAKE_TOOLCHAIN_PREFIX=llvm- \
-        -D_CMAKE_TOOLCHAIN_SUFFIX=-5.0
-}
+        -D_CMAKE_TOOLCHAIN_SUFFIX=-7
+)}
 export -f ninja_opts
 
 emb_opts()
@@ -357,6 +393,19 @@ git()
 }
 export -f git
 
+_run_exe()
+{
+    exe=$(which "$1")
+    if [ -z "$exe" ]
+    then
+        echo "'$1' is not installed!" >&2
+        return 1
+    fi
+    shift
+    "$exe" "$@"
+}
+export -f _run_exe
+
 make()
 {
     recurse="$1"
@@ -366,15 +415,17 @@ make()
     fi
     if [ -f Makefile ]
     then
-        $(which make) "$@"
+        _run_exe make "$@"
     elif [ -f build.ninja ]
     then
-        $(which ninja) "$@"
-    elif [ "$recurse" != norecurse ]
+        _run_exe ninja "$@"
+    elif [ -d "$build" -a "$recurse" != norecurse ]
     then (
         cd "$build"
         make norecurse "$@"
     )
+    else
+        _run_exe make "$@"
     fi
 }
 export -f make
