@@ -27,7 +27,7 @@ CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src
 export MYSQL_UNIX_PORT="${bush_dir}/run/mysqld.sock"
 export MTR_BINDIR="$build"
 
-ulimit -c 0
+ulimit -Sc 0
 
 # innodb_ruby setup
 PATH="${proj_dir}/innodb_ruby/bin:${PATH}"
@@ -59,6 +59,7 @@ mtr()
         ${mtr_opts} \
         ${exclude_opts} \
         "$@" 2>&1 | tee -a mtr.log
+    return $PIPESTATUS
 )}
 
 alias mtrh="mysql-test-run --help | less"
@@ -66,9 +67,9 @@ alias mtrx="mtr --extern socket=${MYSQL_UNIX_PORT}"
 alias mtrx1="mtr --extern socket=${build}/mysql-test/var/tmp/mysqld.1.sock"
 alias mtrf="mtr --big-test --fast --parallel=4"
 alias mtrb="mtrf --big-test"
-alias mtrm="mtr --suite=main"
 alias mtrz="mtr --fast --reorder --parallel=4"
-alias mtrv="mtrz --suite=versioning"
+alias mtrm="mtrz --suite=main"
+alias mtrv="mtrz --suite=versioning --max-test-fail=1"
 alias mtrp="mtrz --suite=period"
 alias mtrpg="mtr --manual-gdb --suite=period"
 alias mtrg="mtr --manual-gdb"
@@ -113,7 +114,7 @@ mysql()
     shift
     [ -x "`which most`" ] &&
         export PAGER=most
-    "$mysql_client" -S "${bush_dir}/run/mysqld.sock" -u root "$db" "$@"
+    "$mysql_client" -S "${bush_dir}/run/mysqld.sock" -u $(whoami)@localhost "$db" "$@"
 )}
 
 mysqlt()
@@ -122,7 +123,7 @@ mysqlt()
     shift
     [ -x "`which most`" ] &&
         export PAGER=most
-    "$mysql_client" -S "${build}/mysql-test/var/tmp/mysqld.1.sock" -u root "$db" "$@"
+    "$mysql_client" -S "${build}/mysql-test/var/tmp/mysqld.1.sock" -u $(whoami)@localhost "$db" "$@"
 )}
 
 
@@ -477,4 +478,29 @@ error()
         cat
     fi |
     while read a b c; do echo "$b"; done
+}
+
+update_cmake()
+{
+    local cache=$build/CMakeCache.txt
+    if [ ! -f "$cache" ]
+    then
+        echo "$cache not found!" >&2
+        return 1
+    fi
+    local cmake_build=$(sed -ne '/^# For build in directory: / { s/^# For build in directory: //; p; }' $cache)
+    if [ "$build" = "$cmake_build" ]
+    then
+        echo "Nothing to be done for $build"
+        return 0
+    fi
+    sed -i -e "s|${cmake_build}|${build}|" $cache ||
+        return $?
+    local cmake_home=$(dirname "$cmake_build")
+    if [ "$cmake_home" != "$bush_dir" ]
+    then
+        sed -i -e "s|${cmake_home}|${bush_dir}|" $cache ||
+            return $?
+    fi
+    echo "Updated ${cmake_build} -> ${build}"
 }

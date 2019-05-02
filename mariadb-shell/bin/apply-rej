@@ -3,8 +3,22 @@ set -e
 
 do_apply()
 {
-    res=${rej%.reject}.result
-    mv "$rej" "$res"
+    local rej="$1"
+    local res="${rej%.reject}"
+    if [[ ! "$rej" =~ , ]]; then
+        res="${res}.result"
+        mv "$rej" "$res"
+    else
+        local comb="${1##*,}"
+        comb="${comb%.reject}"
+        res="${res%,$comb}.result"
+
+        set +e
+        local rdiff=${rej%.reject}.rdiff
+        diff -u "$res" "$rej" > "$rdiff"
+        rm "$rej"
+        set -e
+    fi
     echo "$rej"
 }
 
@@ -12,12 +26,12 @@ if [ -n "$1" ]
 then
     for rej in "$@"
     do
-        do_apply
+        do_apply "$rej"
     done
 else
     find -name '*.reject' |
     while read rej
     do
-        do_apply
+        do_apply "$rej"
     done
 fi
