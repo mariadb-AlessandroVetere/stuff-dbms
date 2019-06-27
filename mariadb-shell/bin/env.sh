@@ -15,14 +15,12 @@ else
 fi
 
 export bush_dir=$(dirname $script)
-export opt="${bush_dir}/opt"
 export src="${bush_dir}/src"
-export build="${bush_dir}/build"
 export proj_dir=$(readlink -ne "${bush_dir}/..")
 export log_dir="${bush_dir}/log"
 
-PATH="${opt}/bin:${proj_dir}/test:${opt}/scripts:${opt}/mysql-test:${opt}/sql-bench:${bush_dir}:${bush_dir}/bin:${bush_dir}/issues:${PATH}"
-CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src}/storage/innobase"
+CDPATH=$(echo $CDPATH|sed -Ee 's|'${bush_dir}'[^:]*:?||g')
+CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src}/storage/innobase:${src}/mysql-test/suite:${src}/mysql-test"
 
 export MYSQL_UNIX_PORT="${bush_dir}/run/mysqld.sock"
 export MTR_BINDIR="$build"
@@ -114,7 +112,7 @@ mysql()
     shift
     [ -x "`which most`" ] &&
         export PAGER=most
-    "$mysql_client" -S "${bush_dir}/run/mysqld.sock" -u $(whoami)@localhost "$db" "$@"
+    "$mysql_client" -S "${bush_dir}/run/mysqld.sock" -u root "$db" "$@"
 )}
 
 mysqlt()
@@ -123,7 +121,7 @@ mysqlt()
     shift
     [ -x "`which most`" ] &&
         export PAGER=most
-    "$mysql_client" -S "${build}/mysql-test/var/tmp/mysqld.1.sock" -u $(whoami)@localhost "$db" "$@"
+    "$mysql_client" -S "${build}/mysql-test/var/tmp/mysqld.1.sock" -u root "$db" "$@"
 )}
 
 
@@ -240,7 +238,7 @@ initdb()
     fi
     mkdir -p "${data}"
     ln -s "${bush_dir}/run" "${data}/run"
-    mysql_install_db --basedir="${opt}" --datadir="${data}" --defaults-file="${defaults}"
+    mysql_install_db --basedir="${opt}" --datadir="${data}" --defaults-file="${defaults}" --auth-root-authentication-method=normal
 )}
 export -f initdb
 
@@ -264,6 +262,8 @@ breaks()
         fi
     done
 }
+
+asan_opts=-DWITH_ASAN:BOOL=ON
 
 prepare()
 {(
@@ -289,6 +289,7 @@ prepare()
     then
         cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache"
     fi
+    eval flavor_opts=\$${flavor}_opts
     cmake-ln -Wno-dev \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Debug \
@@ -301,6 +302,7 @@ prepare()
         -DWITH_WSREP:BOOL=OFF \
         -DWITH_MARIABACKUP:BOOL=OFF \
         -DWITH_SAFEMALLOC:BOOL=OFF \
+        $flavor_opts \
         $cclauncher \
         $plugins \
         "$@" \
@@ -454,6 +456,34 @@ port()
         sed -nEe '/^\s*port\s*=\s*[[:digit:]]+/ { s/.+=\s*([[:digit:]]+)\s*$/\1/; p; }' ~/mysqld.cnf
     fi
 }
+
+flavor()
+{
+    if [ "$1" ]
+    then
+        sed -i -Ee '/^\s*flavor=/ d;' ~/.bashrc
+        if [ "$1" = default ]
+        then
+            unset flavor
+        else
+            sed -i -Ee '/^\s*source ~\/env.sh\s*$/i flavor='${1} ~/.bashrc
+            flavor="$1"
+        fi
+    else
+        if [ "$flavor" ]
+        then
+            echo $flavor
+        else
+            echo default
+        fi
+    fi
+    export build="${bush_dir}/build"${flavor+.${flavor}}
+    export opt="${build}/opt"
+    PATH=$(echo $PATH|sed -Ee 's|'${bush_dir}'[^:]*:?||g')
+    PATH="${opt}/bin:${proj_dir}/test:${opt}/scripts:${opt}/mysql-test:${opt}/sql-bench:${bush_dir}:${bush_dir}/bin:${bush_dir}/issues:${PATH}"
+}
+
+flavor > /dev/null
 
 upatch()
 {
