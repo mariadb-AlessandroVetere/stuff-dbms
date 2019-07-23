@@ -10,7 +10,8 @@ get_deps()
 
 git log HEAD^!| cat
 echo -n "Getting deps... "
-header="=== Dependencies (auto-detected by git-deps) ==="
+header="=== Dependency hints (auto-detected by git-deps) ==="
+old_header="=== Dependencies (auto-detected by git-deps) ==="
 deps="$(get_deps)"
 
 if [ -n "$deps" ]; then
@@ -22,6 +23,7 @@ fi
 
 (
     git show -s --format=%B|
+    sed '/'"$old_header"'/,$d'|
     sed '/'"$header"'/,$d'
     if [ -n "$deps" ]; then
         echo "$header"
