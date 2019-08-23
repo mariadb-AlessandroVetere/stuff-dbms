@@ -534,3 +534,39 @@ update_cmake()
     fi
     echo "Updated ${cmake_build} -> ${build}"
 }
+
+exe()
+{
+    local f="$build/sql/mysqld"
+    if [ ! -e "$f" ]
+    then
+        echo Not exists $f! >&2
+        return 1
+    fi
+    if [ ! -x "$f" ]
+    then
+        echo Not executable $f! >&2
+        return 2
+    fi
+    echo "$f"
+}
+export -f exe
+
+args()
+{
+    alias set=
+    alias args=echo
+    source $build/mysql-test/var/tmp/gdbinit.mysqld.${1:-1}
+    unalias set args
+}
+export -f args
+
+cmd()
+{(
+    set -e
+    local exe args
+    exe="$(exe)"
+    args="$(args $@)"
+    echo "$exe $args"
+)}
+export -f cmd
