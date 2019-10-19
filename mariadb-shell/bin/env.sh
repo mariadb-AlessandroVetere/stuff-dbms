@@ -294,7 +294,7 @@ prepare()
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Debug \
         -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
-        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
+        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0 -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
         -DSECURITY_HARDENED:BOOL=FALSE \
         -DWITH_UNIT_TESTS:BOOL=OFF \
         -DWITH_CSV_STORAGE_ENGINE:BOOL=OFF \
@@ -309,6 +309,33 @@ prepare()
         ../src
 )}
 export -f prepare
+
+prepare_strict()
+{(
+    mkdir -p "${build}"
+    cd "${build}"
+    unset cclauncher
+    if [ -x $(which ccache) ]
+    then
+        cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache"
+    fi
+    cmake-ln -Wno-dev \
+        -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
+        -DCMAKE_BUILD_TYPE:STRING=Debug \
+        -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type" \
+        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0 -Werror=return-type" \
+        -DSECURITY_HARDENED:BOOL=FALSE \
+        -DWITH_UNIT_TESTS:BOOL=OFF \
+        -DWITH_CSV_STORAGE_ENGINE:BOOL=OFF \
+        -DWITH_WSREP:BOOL=OFF \
+        -DWITH_MARIABACKUP:BOOL=OFF \
+        -DWITH_SAFEMALLOC:BOOL=OFF \
+        -DMYSQL_MAINTAINER_MODE:STRING=ON \
+        $cclauncher \
+        "$@" \
+        ../src
+)}
+export -f prepare_strict
 
 rel_opts()
 {(
@@ -346,12 +373,9 @@ emb_opts()
     shift
     "$cmd" \
         "$@" \
-        -GNinja \
-        -DCMAKE_C_COMPILER=/usr/bin/clang \
-        -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
         -DWITH_UNIT_TESTS:BOOL=ON \
         -DWITH_CSV_STORAGE_ENGINE:BOOL=ON \
-        -DWITH_WSREP:BOOL=ON \
+        -DWITH_WSREP:BOOL=OFF \
         -DWITH_EMBEDDED_SERVER:BOOL=ON
 }
 export -f emb_opts
@@ -369,7 +393,7 @@ o1_opts()
 export -f o1_opts
 
 
-alias relprepare="rel_opts prepare"
+alias relprepare="rel_opts prepare_strict"
 alias nprepare="ninja_opts prepare"
 alias nrelprepare="ninja_opts rel_opts prepare"
 alias o1prepare="ninja_opts o1_opts prepare"
