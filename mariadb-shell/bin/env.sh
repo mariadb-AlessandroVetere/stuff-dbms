@@ -296,6 +296,8 @@ prepare()
         -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
         -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0 -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
         -DSECURITY_HARDENED:BOOL=FALSE \
+        -DUPDATE_SUBMODULES:BOOL=OFF \
+        -DPLUGIN_METADATA_LOCK_INFO:STRING=STATIC \
         -DWITH_UNIT_TESTS:BOOL=OFF \
         -DWITH_CSV_STORAGE_ENGINE:BOOL=OFF \
         -DWITH_WSREP:BOOL=OFF \
@@ -398,6 +400,20 @@ alias nprepare="ninja_opts prepare"
 alias nrelprepare="ninja_opts rel_opts prepare"
 alias o1prepare="ninja_opts o1_opts prepare"
 alias embprepare="emb_opts prepare"
+
+relcheck()
+{(
+    set -e
+    echo "*** Checking release build..."
+    relprepare
+    cd "${build}-rel"
+    make -j4
+    echo "*** Checking minimal build..."
+    sed -ie '/^PLUGIN_/ s/^\(.*\)=.*/\1=NO/' CMakeCache.txt
+    cmake "$src"
+    make -j4
+    echo "*** All checks are successful!"
+)}
 
 cmakemin()
 {
@@ -521,6 +537,27 @@ grep_cmake()
     grep -i "$@" "${build}/CMakeCache.txt"
 }
 
+asan()
+{
+    local val=$(sed -Ene '/WITH_ASAN:BOOL/ { s/^.*=(.+)$/\1/; p; }' "${build}/CMakeCache.txt")
+    if [[ -n "$1" ]]
+    then
+        local opt=${1^^}
+        if [[ $opt != ON && $opt != OFF ]]
+        then
+            echo 'Usage: asan [off|on]' >&2
+            return 1;
+        fi
+        if [[ "$val" != $opt ]]
+        then
+            sed -Eie '/WITH_ASAN:BOOL/ { s/^(.*)=.+$/\1='$opt'/; }' "${build}/CMakeCache.txt"
+            nprepare
+        fi
+    else
+        echo $val
+    fi
+}
+
 error()
 {
     local err_h="${build}/include/mysqld_error.h"
@@ -594,3 +631,15 @@ cmd()
     echo "$exe $args"
 )}
 export -f cmd
+
+record()
+{
+    if [[ $(asan) != OFF ]]
+    then
+        echo 'Run "asan off", compile and try again!' >&2
+        return 1
+    fi
+    rr record `cmd $@`
+}
+
+alias replay="rr replay"
