@@ -1,0 +1,10 @@
+#!/bin/bash
+run()
+{
+    rr record "${@: -1}" "${@:1:$#-1}"
+}
+
+eval "false $@"
+
+
+
