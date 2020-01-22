@@ -187,6 +187,28 @@ runt()
 )}
 export -f runt
 
+runrr()
+{(
+    if [ "$1" = -start ]
+    then
+        opt_run="-ex start"
+        shift
+    else
+        opt_run="-ex run"
+    fi
+    if [ -n "$1" -a -f "$1" ]
+    then
+        defaults="$1"
+        shift
+    else
+        cd "${bush_dir}"
+        defaults=mysqld.cnf
+    fi
+    exec rr record "${opt}/bin/mysqld" "--defaults-file=$defaults" --plugin-maturity=experimental --plugin-load=test_versioning --debug-gdb --silent-startup "$@"
+)}
+export -f runrr
+
+
 binlog()
 {(
     local run_gdb=""
@@ -289,12 +311,13 @@ prepare()
     then
         cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache"
     fi
+    # TODO: add DISABLE_PSI_FILE
     eval flavor_opts=\$${flavor}_opts
     cmake-ln -Wno-dev \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Debug \
-        -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
-        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0 -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
+        -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0 -DDISABLE_PSI_FILE -Werror=overloaded-virtual -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
+        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0 -DDISABLE_PSI_FILE -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
         -DSECURITY_HARDENED:BOOL=FALSE \
         -DUPDATE_SUBMODULES:BOOL=OFF \
         -DPLUGIN_METADATA_LOCK_INFO:STRING=STATIC \
@@ -407,12 +430,13 @@ relcheck()
     echo "*** Checking release build..."
     relprepare
     cd "${build}-rel"
-    make -j4
+    /usr/bin/make -j4
     echo "*** Checking minimal build..."
     sed -ie '/^PLUGIN_/ s/^\(.*\)=.*/\1=NO/' CMakeCache.txt
     cmake "$src"
-    make -j4
+    /usr/bin/make -j4
     echo "*** All checks are successful!"
+    rm -rf "${build}-rel"
 )}
 
 cmakemin()
@@ -642,4 +666,4 @@ record()
     rr record `cmd $@`
 }
 
-alias replay="rr replay"
+alias replay="rr replay -- -q -ex continue"
