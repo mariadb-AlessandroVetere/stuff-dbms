@@ -9,13 +9,13 @@ do_apply()
         res="${res}.result"
         mv "$rej" "$res"
     else
-        local comb="${1##*,}"
+        local comb="${1#*,}"
         comb="${comb%.reject}"
         res="${res%,$comb}.result"
 
         set +e
         local rdiff=${rej%.reject}.rdiff
-        diff -u "$res" "$rej" > "$rdiff"
+        diff -u --label "$(basename -- "$res")" --label "$(basename -- "$rej")" "$res" "$rej" > "$rdiff"
         rm "$rej"
         set -e
     fi
