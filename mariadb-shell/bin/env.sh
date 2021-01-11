@@ -104,6 +104,24 @@ mtrval()
         "$@"
 }
 
+mtrleak()
+{
+    local supp=~/mtr.supp
+    local supp_opt=''
+    [ -f "$supp" ] &&
+        supp_opt=--valgrind-option=--suppressions=$supp
+    mtr --valgrind-mysqld \
+        --valgrind-option=--leak-check=full \
+        --valgrind-option=--track-origins=yes \
+        --valgrind-option=--num-callers=50 \
+        --valgrind-option=--log-file=${log_dir}/leak.log \
+        $supp_opt \
+        "$@"
+}
+
+
+
+
 mysql_client=$(which mysql)
 
 mysql()
@@ -174,7 +192,7 @@ rund()
         cd "${bush_dir}"
         defaults=mysqld.cnf
     fi
-    exec gdb -q $opt_run --args "${opt}/bin/mysqld" "--defaults-file=$defaults" --plugin-maturity=experimental --plugin-load=test_versioning --debug-gdb --silent-startup "$@"
+    exec gdb -q $opt_run --args "${opt}/bin/mysqld" "--defaults-file=$defaults" --plugin-maturity=experimental --plugin-load=test_versioning --debug-gdb "$@"
 )}
 export -f rund
 
@@ -316,8 +334,8 @@ prepare()
     cmake-ln -Wno-dev \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Debug \
-        -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0 -DDISABLE_PSI_FILE -Werror=overloaded-virtual -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
-        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0 -DDISABLE_PSI_FILE -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
+        -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
+        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0 -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
         -DSECURITY_HARDENED:BOOL=FALSE \
         -DUPDATE_SUBMODULES:BOOL=OFF \
         -DPLUGIN_METADATA_LOCK_INFO:STRING=STATIC \
@@ -355,7 +373,7 @@ prepare_strict()
         -DWITH_WSREP:BOOL=OFF \
         -DWITH_MARIABACKUP:BOOL=OFF \
         -DWITH_SAFEMALLOC:BOOL=OFF \
-        -DMYSQL_MAINTAINER_MODE:STRING=ON \
+        -DMYSQL_MAINTAINER_MODE:STRING=OFF \
         $cclauncher \
         "$@" \
         ../src
@@ -563,7 +581,7 @@ grep_cmake()
 
 asan()
 {
-    local val=$(sed -Ene '/WITH_ASAN:BOOL/ { s/^.*=(.+)$/\1/; p; }' "${build}/CMakeCache.txt")
+    local val=$(sed -Ene '/^WITH_ASAN:BOOL/ { s/^.*=(.+)$/\1/; p; }' "${build}/CMakeCache.txt")
     if [[ -n "$1" ]]
     then
         local opt=${1^^}
@@ -574,7 +592,7 @@ asan()
         fi
         if [[ "$val" != $opt ]]
         then
-            sed -Eie '/WITH_ASAN:BOOL/ { s/^(.*)=.+$/\1='$opt'/; }' "${build}/CMakeCache.txt"
+            sed -Eie '/^WITH_ASAN:BOOL/ { s/^(.*)=.+$/\1='$opt'/; }' "${build}/CMakeCache.txt"
             nprepare
         fi
     else
@@ -666,4 +684,17 @@ record()
     rr record `cmd $@`
 }
 
-alias replay="rr replay -- -q -ex continue"
+record_kills()
+{
+    local i=137
+    while ((i == 137))
+    do
+        record
+        i=$?
+    done
+}
+
+replay()
+{
+    rr replay "$@" -- -q -ex continue -ex reverse-continue
+}
