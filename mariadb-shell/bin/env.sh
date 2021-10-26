@@ -24,6 +24,11 @@ CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src
 
 export MYSQL_UNIX_PORT="${bush_dir}/run/mysqld.sock"
 export MTR_BINDIR="$build"
+export CCACHE_BASEDIR="${bush_dir}"
+export CCACHE_DIR="$(realpath ${bush_dir}/../.ccache)"
+export CCACHE_NLEVELS=3
+export CCACHE_HARDLINK=true
+export CCACHE_MAXSIZE=15G
 
 ulimit -Sc 0
 
@@ -34,6 +39,10 @@ alias ispace=innodb_space
 alias ilog=innodb_log
 
 mtr_opts="--tail-lines=0"
+opt_ddl="--mysqld=--debug=d,ddl_log"
+opt_vers="--mysqld=--debug=d,sysvers_force --mysqld=--system_versioning_alter_history=keep"
+opt_fts="--mysqld=--innodb_ft_sort_pll_degree=1"
+
 mtr()
 {(
     mkdir -p "$log_dir"
@@ -54,6 +63,7 @@ mtr()
         --max-test-fail=0 \
         --suite-timeout=1440 \
         --mysqld=--silent-startup \
+        --mysqld=--loose-innodb-flush-method=fsync \
         ${mtr_opts} \
         ${exclude_opts} \
         "$@" 2>&1 | tee -a mtr.log
@@ -63,15 +73,19 @@ mtr()
 alias mtrh="mysql-test-run --help | less"
 alias mtrx="mtr --extern socket=${MYSQL_UNIX_PORT}"
 alias mtrx1="mtr --extern socket=${build}/mysql-test/var/tmp/mysqld.1.sock"
-alias mtrf="mtr --big-test --fast --parallel=4"
+alias mtrf="mtr --big-test --fast --parallel=10"
 alias mtrb="mtrf --big-test"
-alias mtrz="mtr --fast --reorder --parallel=4"
+alias mtrz="mtr --fast --reorder --parallel=10"
 alias mtrm="mtrz --suite=main"
 alias mtrv="mtrz --suite=versioning"
-alias mtrp="mtrz --suite=period"
-alias mtrpg="mtr --manual-gdb --suite=period"
+alias mtrvv="mtrz --suite=period"
+alias mtrvvg="mtr --manual-gdb --suite=period"
 alias mtrg="mtr --manual-gdb"
 alias mtrvg="mtr --manual-gdb --suite=versioning"
+alias mtrp="mtrz --suite=parts"
+alias mtrpg="mtrp --manual-gdb"
+alias mtri="mtrz --suite=innodb"
+alias mtrig="mtri --manual-gdb"
 alias myh="mysqld --verbose --help | less"
 
 br()
@@ -95,11 +109,10 @@ mtrval()
     local supp_opt=''
     [ -f "$supp" ] &&
         supp_opt=--valgrind-option=--suppressions=$supp
-    mtr --valgrind-mysqld \
-        --valgrind-option=--leak-check=no \
-        --valgrind-option=--track-origins=yes \
-        --valgrind-option=--num-callers=50 \
-        --valgrind-option=--log-file=${log_dir}/badmem.log \
+    mtr --valgrind=--leak-check=no \
+        --valgrind=--track-origins=yes \
+        --valgrind=--num-callers=50 \
+        --valgrind=--log-file=${log_dir}/badmem.log \
         $supp_opt \
         "$@"
 }
@@ -131,6 +144,21 @@ mysql()
     [ -x "`which most`" ] &&
         export PAGER=most
     "$mysql_client" -S "${bush_dir}/run/mysqld.sock" -u root "$db" "$@"
+)}
+
+
+backup()
+{(
+    mysql_client=$(which mariabackup)
+    "$mysql_client" -S "${bush_dir}/run/mysqld.sock" -u root \
+        --target-dir=~/tmp/backup "$@"
+)}
+
+backupd()
+{(
+    mysql_client=$(which mariabackup)
+    gdb --args "$mysql_client" -S "${bush_dir}/run/mysqld.sock" -u root \
+        --target-dir=~/tmp/backup "$@"
 )}
 
 mysqlt()
@@ -334,8 +362,8 @@ prepare()
     cmake-ln -Wno-dev \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Debug \
-        -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
-        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0 -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
+        -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type -Wno-deprecated-register -Wno-error=macro-redefined -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
+        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0 -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=macro-redefined -Wno-error=unused-function $compiler_flags $CFLAGS" \
         -DSECURITY_HARDENED:BOOL=FALSE \
         -DUPDATE_SUBMODULES:BOOL=OFF \
         -DPLUGIN_METADATA_LOCK_INFO:STRING=STATIC \
@@ -344,7 +372,6 @@ prepare()
         -DWITH_WSREP:BOOL=OFF \
         -DWITH_MARIABACKUP:BOOL=OFF \
         -DWITH_SAFEMALLOC:BOOL=OFF \
-        -DMYSQL_MAINTAINER_MODE:STRING=OFF \
         $flavor_opts \
         $cclauncher \
         $plugins \
@@ -373,7 +400,7 @@ prepare_strict()
         -DWITH_WSREP:BOOL=OFF \
         -DWITH_MARIABACKUP:BOOL=OFF \
         -DWITH_SAFEMALLOC:BOOL=OFF \
-        -DMYSQL_MAINTAINER_MODE:STRING=OFF \
+        -DMYSQL_MAINTAINER_MODE:STRING=ON \
         $cclauncher \
         "$@" \
         ../src
@@ -593,6 +620,69 @@ asan()
         if [[ "$val" != $opt ]]
         then
             sed -Eie '/^WITH_ASAN:BOOL/ { s/^(.*)=.+$/\1='$opt'/; }' "${build}/CMakeCache.txt"
+            nprepare
+        fi
+    else
+        echo $val
+    fi
+}
+
+maint()
+{
+    local val=$(sed -Ene '/^MYSQL_MAINTAINER_MODE:STRING/ { s/^.*=(.+)$/\1/; p; }' "${build}/CMakeCache.txt")
+    if [[ -n "$1" ]]
+    then
+        local opt=${1^^}
+        if [[ $opt != ON && $opt != OFF ]]
+        then
+            echo 'Usage: maint [off|on]' >&2
+            return 1;
+        fi
+        if [[ "$val" != $opt ]]
+        then
+            sed -Eie '/^MYSQL_MAINTAINER_MODE:STRING/ { s/^(.*)=.+$/\1='$opt'/; }' "${build}/CMakeCache.txt"
+            nprepare
+        fi
+    else
+        echo $val
+    fi
+}
+
+emb()
+{
+    local val=$(sed -Ene '/^WITH_EMBEDDED_SERVER:BOOL/ { s/^.*=(.+)$/\1/; p; }' "${build}/CMakeCache.txt")
+    if [[ -n "$1" ]]
+    then
+        local opt=${1^^}
+        if [[ $opt != ON && $opt != OFF ]]
+        then
+            echo 'Usage: emb [off|on]' >&2
+            return 1;
+        fi
+        if [[ "$val" != $opt ]]
+        then
+            sed -Eie '/^WITH_EMBEDDED_SERVER:BOOL/ { s/^(.*)=.+$/\1='$opt'/; }' "${build}/CMakeCache.txt"
+            nprepare
+        fi
+    else
+        echo $val
+    fi
+}
+
+wsrep()
+{
+    local val=$(sed -Ene '/^WITH_WSREP:BOOL/ { s/^.*=(.+)$/\1/; p; }' "${build}/CMakeCache.txt")
+    if [[ -n "$1" ]]
+    then
+        local opt=${1^^}
+        if [[ $opt != ON && $opt != OFF ]]
+        then
+            echo 'Usage: maint [off|on]' >&2
+            return 1;
+        fi
+        if [[ "$val" != $opt ]]
+        then
+            sed -Eie '/^WITH_WSREP:BOOL/ { s/^(.*)=.+$/\1='$opt'/; }' "${build}/CMakeCache.txt"
             nprepare
         fi
     else
