@@ -20,7 +20,7 @@ export proj_dir=$(readlink -ne "${bush_dir}/..")
 export log_dir="${bush_dir}/log"
 
 CDPATH=$(echo $CDPATH|sed -Ee 's|'${bush_dir}'[^:]*:?||g')
-CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src}/storage/innobase:${src}/mysql-test/suite:${src}/mysql-test"
+CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src}/storage/innobase:${src}/mysql-test/suite:${src}/mysql-test:${build}/mysql-test"
 
 export MYSQL_UNIX_PORT="${bush_dir}/run/mysqld.sock"
 export MTR_BINDIR="$build"
@@ -52,6 +52,7 @@ mtr()
     else
         mtr_script=mysql-test-run
         cd "$log_dir"
+        rm `find -name '*.log' -type f -ctime +30`
     fi
     unset exclude_opts
     [ -f ~/tests_exclude ] &&
@@ -64,10 +65,12 @@ mtr()
         --suite-timeout=1440 \
         --mysqld=--silent-startup \
         --mysqld=--loose-innodb-flush-method=fsync \
+        --suite="main-,archive-,binlog-,csv-,federated-,funcs_1-,funcs_2-,gcol-,handler-,heap-,innodb-,innodb_fts-,innodb_gis-,json-,maria-,mariabackup-,multi_source-,optimizer_unfixed_bugs-,parts-,perfschema-,plugins-,roles-,rpl-,sys_vars-,unit-,vcol-,versioning-,period-,sysschema-" \
         ${mtr_opts} \
         ${exclude_opts} \
         "$@" 2>&1 | tee -a mtr.log
     return $PIPESTATUS
+#        --suite="main-,archive-,binlog-,client-,csv-,federated-,funcs_1-,funcs_2-,gcol-,handler-,heap-,innodb-,innodb_fts-,innodb_gis-,innodb_i_s-,json-,maria-,mariabackup-,multi_source-,optimizer_unfixed_bugs-,parts-,perfschema-,plugins-,roles-,rpl-,sys_vars-,sql_sequence-,unit-,vcol-,versioning-,period-,sysschema-" \
 )}
 
 alias mtrh="mysql-test-run --help | less"
@@ -108,11 +111,25 @@ mtrval()
     local supp=~/mtr.supp
     local supp_opt=''
     [ -f "$supp" ] &&
-        supp_opt=--valgrind-option=--suppressions=$supp
+        supp_opt=--valgrind=--suppressions=$supp
     mtr --valgrind=--leak-check=no \
         --valgrind=--track-origins=yes \
         --valgrind=--num-callers=50 \
         --valgrind=--log-file=${log_dir}/badmem.log \
+        $supp_opt \
+        "$@"
+}
+
+
+mtrvgdb()
+{
+    echo 'Use target remote | vgdb'
+    local supp=~/mtr.supp
+    local supp_opt=''
+    [ -f "$supp" ] &&
+        supp_opt=--valgrind=--suppressions=$supp
+    mtr --valgrind=--vgdb=yes \
+        --valgrind=--vgdb-error=0 \
         $supp_opt \
         "$@"
 }
@@ -122,17 +139,14 @@ mtrleak()
     local supp=~/mtr.supp
     local supp_opt=''
     [ -f "$supp" ] &&
-        supp_opt=--valgrind-option=--suppressions=$supp
-    mtr --valgrind-mysqld \
-        --valgrind-option=--leak-check=full \
-        --valgrind-option=--track-origins=yes \
-        --valgrind-option=--num-callers=50 \
-        --valgrind-option=--log-file=${log_dir}/leak.log \
+        supp_opt=--valgrind=--suppressions=$supp
+    mtr --valgrind=--leak-check=full \
+        --valgrind=--track-origins=yes \
+        --valgrind=--num-callers=50 \
+        --valgrind=--log-file=${log_dir}/leak.log \
         $supp_opt \
         "$@"
 }
-
-
 
 
 mysql_client=$(which mysql)
@@ -332,6 +346,8 @@ breaks()
 }
 
 asan_opts=-DWITH_ASAN:BOOL=ON
+msan_opts=-DWITH_MSAN:BOOL=ON
+export debug_opts="-g -O0 -DEXTRA_DEBUG -Werror=overloaded-virtual -Werror=return-type -Wno-deprecated-register -Wno-error=macro-redefined -Wno-error=unused-variable -Wno-error=unused-function"
 
 prepare()
 {(
@@ -362,9 +378,10 @@ prepare()
     cmake-ln -Wno-dev \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Debug \
-        -DCMAKE_CXX_FLAGS_DEBUG:STRING="-g -O0 -Werror=overloaded-virtual -Werror=return-type -Wno-deprecated-register -Wno-error=macro-redefined -Wno-error=unused-variable -Wno-error=unused-function $compiler_flags $CFLAGS" \
-        -DCMAKE_C_FLAGS_DEBUG:STRING="-g -O0 -Werror=return-type -Wno-deprecated-register -Wno-error=unused-variable -Wno-error=macro-redefined -Wno-error=unused-function $compiler_flags $CFLAGS" \
+        -DCMAKE_CXX_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $CFLAGS" \
+        -DCMAKE_C_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $CFLAGS" \
         -DSECURITY_HARDENED:BOOL=FALSE \
+        -DMYSQL_MAINTAINER_MODE:STRING=OFF \
         -DUPDATE_SUBMODULES:BOOL=OFF \
         -DPLUGIN_METADATA_LOCK_INFO:STRING=STATIC \
         -DWITH_UNIT_TESTS:BOOL=OFF \
@@ -620,6 +637,27 @@ asan()
         if [[ "$val" != $opt ]]
         then
             sed -Eie '/^WITH_ASAN:BOOL/ { s/^(.*)=.+$/\1='$opt'/; }' "${build}/CMakeCache.txt"
+            nprepare
+        fi
+    else
+        echo $val
+    fi
+}
+
+msan()
+{
+    local val=$(sed -Ene '/^WITH_MSAN:BOOL/ { s/^.*=(.+)$/\1/; p; }' "${build}/CMakeCache.txt")
+    if [[ -n "$1" ]]
+    then
+        local opt=${1^^}
+        if [[ $opt != ON && $opt != OFF ]]
+        then
+            echo 'Usage: msan [off|on]' >&2
+            return 1;
+        fi
+        if [[ "$val" != $opt ]]
+        then
+            sed -Eie '/^WITH_MSAN:BOOL/ { s/^(.*)=.+$/\1='$opt'/; }' "${build}/CMakeCache.txt"
             nprepare
         fi
     else
