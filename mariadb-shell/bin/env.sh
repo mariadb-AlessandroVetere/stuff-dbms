@@ -368,7 +368,7 @@ prepare()
         compiler_flags="$(cat ~/compiler_flags)"
         compiler_flags="$(echo $compiler_flags)"
     fi
-    unset cclauncher
+    cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER= -DCMAKE_C_COMPILER_LAUNCHER="
     if [ -x $(which ccache) ]
     then
         cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache"
@@ -618,114 +618,75 @@ upatch()
     patch "$arg" "$@" < /tmp/u.diff
 }
 
-grep_cmake()
+cmgrep()
 {
     grep -i "$@" "${build}/CMakeCache.txt"
 }
 
-asan()
+option_check()
 {
-    local val=$(sed -Ene '/^WITH_ASAN:BOOL/ { s/^.*=(.+)$/\1/; p; }' "${build}/CMakeCache.txt")
-    if [[ -n "$1" ]]
+    sed -Ene '/^'"$1"'/ { s/^.*=(.+)$/\1/; p; }' "$2"
+}
+
+option_set()
+{
+    sed -Eie '/^'"$1"'/ { s/^(.*)=.+$/\1='"$2"'/; }' "$3"
+}
+
+cm_option_check()
+{
+    option_check "$1" "${build}/CMakeCache.txt"
+}
+
+cm_option_set()
+{
+    option_set "$1" "$2" "${build}/CMakeCache.txt"
+}
+
+bush_cm_onoff_option()
+{
+    local val=$(cm_option_check "$1")
+    if [[ -n "$3" ]]
     then
-        local opt=${1^^}
+        local opt=${3^^}
         if [[ $opt != ON && $opt != OFF ]]
         then
-            echo 'Usage: asan [off|on]' >&2
+            echo "$2" >&2
             return 1;
         fi
         if [[ "$val" != $opt ]]
         then
-            sed -Eie '/^WITH_ASAN:BOOL/ { s/^(.*)=.+$/\1='$opt'/; }' "${build}/CMakeCache.txt"
+            cm_option_set "$1" "$opt" "${build}/CMakeCache.txt"
             nprepare
         fi
     else
         echo $val
     fi
+}
+
+asan()
+{
+    bush_cm_onoff_option WITH_ASAN:BOOL 'Usage: asan [off|on]' "$@"
 }
 
 msan()
 {
-    local val=$(sed -Ene '/^WITH_MSAN:BOOL/ { s/^.*=(.+)$/\1/; p; }' "${build}/CMakeCache.txt")
-    if [[ -n "$1" ]]
-    then
-        local opt=${1^^}
-        if [[ $opt != ON && $opt != OFF ]]
-        then
-            echo 'Usage: msan [off|on]' >&2
-            return 1;
-        fi
-        if [[ "$val" != $opt ]]
-        then
-            sed -Eie '/^WITH_MSAN:BOOL/ { s/^(.*)=.+$/\1='$opt'/; }' "${build}/CMakeCache.txt"
-            nprepare
-        fi
-    else
-        echo $val
-    fi
+    bush_cm_onoff_option WITH_MSAN:BOOL 'Usage: msan [off|on]' "$@"
 }
 
 maint()
 {
-    local val=$(sed -Ene '/^MYSQL_MAINTAINER_MODE:STRING/ { s/^.*=(.+)$/\1/; p; }' "${build}/CMakeCache.txt")
-    if [[ -n "$1" ]]
-    then
-        local opt=${1^^}
-        if [[ $opt != ON && $opt != OFF ]]
-        then
-            echo 'Usage: maint [off|on]' >&2
-            return 1;
-        fi
-        if [[ "$val" != $opt ]]
-        then
-            sed -Eie '/^MYSQL_MAINTAINER_MODE:STRING/ { s/^(.*)=.+$/\1='$opt'/; }' "${build}/CMakeCache.txt"
-            nprepare
-        fi
-    else
-        echo $val
-    fi
+    bush_cm_onoff_option MYSQL_MAINTAINER_MODE:STRING 'Usage: maint [off|on]' "$@"
 }
 
 emb()
 {
-    local val=$(sed -Ene '/^WITH_EMBEDDED_SERVER:BOOL/ { s/^.*=(.+)$/\1/; p; }' "${build}/CMakeCache.txt")
-    if [[ -n "$1" ]]
-    then
-        local opt=${1^^}
-        if [[ $opt != ON && $opt != OFF ]]
-        then
-            echo 'Usage: emb [off|on]' >&2
-            return 1;
-        fi
-        if [[ "$val" != $opt ]]
-        then
-            sed -Eie '/^WITH_EMBEDDED_SERVER:BOOL/ { s/^(.*)=.+$/\1='$opt'/; }' "${build}/CMakeCache.txt"
-            nprepare
-        fi
-    else
-        echo $val
-    fi
+    bush_cm_onoff_option WITH_EMBEDDED_SERVER:BOOL 'Usage: emb [off|on]' "$@"
 }
 
 wsrep()
 {
-    local val=$(sed -Ene '/^WITH_WSREP:BOOL/ { s/^.*=(.+)$/\1/; p; }' "${build}/CMakeCache.txt")
-    if [[ -n "$1" ]]
-    then
-        local opt=${1^^}
-        if [[ $opt != ON && $opt != OFF ]]
-        then
-            echo 'Usage: maint [off|on]' >&2
-            return 1;
-        fi
-        if [[ "$val" != $opt ]]
-        then
-            sed -Eie '/^WITH_WSREP:BOOL/ { s/^(.*)=.+$/\1='$opt'/; }' "${build}/CMakeCache.txt"
-            nprepare
-        fi
-    else
-        echo $val
-    fi
+    bush_cm_onoff_option WITH_WSREP:BOOL 'Usage: wsrep [off|on]' "$@"
 }
 
 error()
