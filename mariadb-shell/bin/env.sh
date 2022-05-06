@@ -65,12 +65,12 @@ mtr()
         --suite-timeout=1440 \
         --mysqld=--silent-startup \
         --mysqld=--loose-innodb-flush-method=fsync \
-        --suite="main-,archive-,binlog-,csv-,federated-,funcs_1-,funcs_2-,gcol-,handler-,heap-,innodb-,innodb_fts-,innodb_gis-,json-,maria-,mariabackup-,multi_source-,optimizer_unfixed_bugs-,parts-,perfschema-,plugins-,roles-,rpl-,sys_vars-,unit-,vcol-,versioning-,period-,sysschema-" \
         ${mtr_opts} \
         ${exclude_opts} \
         "$@" 2>&1 | tee -a mtr.log
     return $PIPESTATUS
 #        --suite="main-,archive-,binlog-,client-,csv-,federated-,funcs_1-,funcs_2-,gcol-,handler-,heap-,innodb-,innodb_fts-,innodb_gis-,innodb_i_s-,json-,maria-,mariabackup-,multi_source-,optimizer_unfixed_bugs-,parts-,perfschema-,plugins-,roles-,rpl-,sys_vars-,sql_sequence-,unit-,vcol-,versioning-,period-,sysschema-" \
+#        --suite="main-,archive-,binlog-,csv-,federated-,funcs_1-,funcs_2-,gcol-,handler-,heap-,innodb-,innodb_fts-,innodb_gis-,json-,maria-,mariabackup-,multi_source-,optimizer_unfixed_bugs-,parts-,perfschema-,plugins-,roles-,rpl-,sys_vars-,unit-,vcol-,versioning-,period-,sysschema-" \
 )}
 
 alias mtrh="mysql-test-run --help | less"
@@ -447,10 +447,10 @@ ninja_opts()
     "$cmd" \
         "$@" \
         -GNinja \
-        -DCMAKE_C_COMPILER=/usr/bin/clang-7 \
-        -DCMAKE_CXX_COMPILER=/usr/bin/clang++-7 \
-        -D_CMAKE_TOOLCHAIN_PREFIX=llvm- \
-        -D_CMAKE_TOOLCHAIN_SUFFIX=-7
+        -DCMAKE_C_COMPILER=/usr/bin/clang \
+        -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
+        -D_CMAKE_TOOLCHAIN_PREFIX=llvm-
+#        -D_CMAKE_TOOLCHAIN_SUFFIX=-7
 )}
 export -f ninja_opts
 
