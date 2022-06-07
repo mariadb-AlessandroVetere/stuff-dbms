@@ -27,7 +27,7 @@ export MTR_BINDIR="$build"
 export CCACHE_BASEDIR="${bush_dir}"
 export CCACHE_DIR="$(realpath ${bush_dir}/../.ccache)"
 export CCACHE_NLEVELS=3
-export CCACHE_HARDLINK=true
+# export CCACHE_HARDLINK=true
 export CCACHE_MAXSIZE=15G
 
 ulimit -Sc 0
@@ -59,6 +59,7 @@ mtr()
         exclude_opts="--skip-test-list=${HOME}/tests_exclude"
     [ -f mtr.log ] &&
         mv mtr.log $(date '+mtr_%Y%m%d_%H%M%S.log')
+    # Using --mem makes var/ path always different!
     exec $mtr_script \
         --force \
         --max-test-fail=0 \
@@ -349,6 +350,12 @@ asan_opts=-DWITH_ASAN:BOOL=ON
 msan_opts=-DWITH_MSAN:BOOL=ON
 export debug_opts="-g -O0 -DEXTRA_DEBUG -Werror=overloaded-virtual -Werror=return-type -Wno-deprecated-register -Wno-error=macro-redefined -Wno-error=unused-variable -Wno-error=unused-function"
 
+conf()
+{(
+    cd "${build}"
+    ccmake "${src}"
+)}
+
 prepare()
 {(
     mkdir -p "${build}"
@@ -378,8 +385,8 @@ prepare()
     cmake-ln -Wno-dev \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Debug \
-        -DCMAKE_CXX_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $CFLAGS" \
-        -DCMAKE_C_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $CFLAGS" \
+        -DCMAKE_CXX_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $CMAKE_C_FLAGS $CMAKE_CXX_FLAGS" \
+        -DCMAKE_C_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $CMAKE_C_FLAGS" \
         -DSECURITY_HARDENED:BOOL=FALSE \
         -DMYSQL_MAINTAINER_MODE:STRING=OFF \
         -DUPDATE_SUBMODULES:BOOL=OFF \
@@ -393,7 +400,7 @@ prepare()
         $cclauncher \
         $plugins \
         "$@" \
-        ../src
+        "${src}"
 )}
 export -f prepare
 
@@ -420,7 +427,7 @@ prepare_strict()
         -DMYSQL_MAINTAINER_MODE:STRING=ON \
         $cclauncher \
         "$@" \
-        ../src
+        "${src}"
 )}
 export -f prepare_strict
 
@@ -442,7 +449,9 @@ export -f rel_opts
 ninja_opts()
 {(
     cmd="$1"
-    export CFLAGS="${CFLAGS:+ $CFLAGS}-fdebug-macro"
+    export CMAKE_C_FLAGS="${CMAKE_C_FLAGS:+$CMAKE_C_FLAGS }-fdebug-macro"
+    #libc_home=/usr/lib/llvm-14
+    #export CFLAGS="${CFLAGS:+ $CFLAGS}-fdebug-macro -stdlib=libc++ -I${libc_home}/include/c++/v1 -L${libc_home}/lib -Wl,-rpath,${libc_home}/lib"
     shift
     "$cmd" \
         "$@" \
@@ -645,20 +654,24 @@ cm_option_set()
 
 bush_cm_onoff_option()
 {
-    local val=$(cm_option_check "$1")
+    local opt="$1"
+    local val=$(cm_option_check "$opt")
     if [[ -n "$3" ]]
     then
-        local opt=${3^^}
-        if [[ $opt != ON && $opt != OFF ]]
+        local help="$2"
+        local nval=${3^^}
+        shift 3
+        if [[ $nval != ON && $nval != OFF ]]
         then
-            echo "$2" >&2
+            echo "$help" >&2
             return 1;
         fi
-        if [[ "$val" != $opt ]]
+        if [[ "$val" != $nval ]]
         then
-            cm_option_set "$1" "$opt" "${build}/CMakeCache.txt"
-            nprepare
+            #cm_option_set "$1" "$nval" "${build}/CMakeCache.txt"
+            ninja_opts prepare -D$opt=$nval "$@"
         fi
+        cm_option_check "$opt"
     else
         echo $val
     fi
@@ -670,9 +683,28 @@ asan()
 }
 
 msan()
-{
-    bush_cm_onoff_option WITH_MSAN:BOOL 'Usage: msan [off|on]' "$@"
-}
+{(
+    local nval=${1^^}
+    shift
+    if [ "$nval" = ON ]
+    then
+        local msan_libs="/home/midenok/src/mariadb/msan-libs"
+        local msan_include="${msan_libs}/build/llvm-toolchain-14-14.0.0/libc++msan/include/c++/v1"
+        local msan_include2="${msan_libs}/build/llvm-toolchain-14-14.0.0/libcxxabi/include"
+        export CMAKE_C_FLAGS="-O2 ${CMAKE_C_FLAGS:+$CMAKE_C_FLAGS }-Wno-unused-command-line-argument -L${msan_libs} -I${msan_include} -I${msan_include2} -Wl,-rpath,${msan_libs}"
+        export CMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS:+$CMAKE_CXX_FLAGS }-std=c++11 -stdlib=libc++ -lc++abi"
+        bush_cm_onoff_option WITH_MSAN:BOOL 'Usage: msan [off|on]' ON \
+            -DWITH_EMBEDDED_SERVER=OFF -DWITH_UNIT_TESTS=OFF \
+            -DWITH_INNODB_{BZIP2,LZ4,LZMA,LZO,SNAPPY}=OFF \
+            -DPLUGIN_{ARCHIVE,TOKUDB,MROONGA,OQGRAPH,ROCKSDB,CONNECT,SPIDER}=NO \
+            -DWITH_SAFEMALLOC=OFF \
+            -DWITH_{ZLIB,SSL,PCRE}=bundled \
+            -DHAVE_LIBAIO_H=0 -DCMAKE_DISABLE_FIND_PACKAGE_{URING,LIBAIO}=1 \
+            "$@"
+    else
+        bush_cm_onoff_option WITH_MSAN:BOOL 'Usage: msan [off|on]' "$nval" "$@"
+    fi
+)}
 
 maint()
 {
