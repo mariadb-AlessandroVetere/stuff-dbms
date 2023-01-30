@@ -27,7 +27,7 @@ select_project=false
 select_links=false
 select_skel=false
 copy_from=trunk
-clone_from="git@github.com:tempesta-tech/mariadb"
+clone_from="git@github.com:mariadb/mariadb"
 force_cleanup=false
 unset verbose_on
 unset verbose_off

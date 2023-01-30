@@ -63,6 +63,7 @@ mtr()
     exec $mtr_script \
         --force \
         --max-test-fail=0 \
+        --debug-sync-timeout=2 \
         --suite-timeout=1440 \
         --mysqld=--silent-startup \
         --mysqld=--loose-innodb-flush-method=fsync \
@@ -77,9 +78,9 @@ mtr()
 alias mtrh="mysql-test-run --help | less"
 alias mtrx="mtr --extern socket=${MYSQL_UNIX_PORT}"
 alias mtrx1="mtr --extern socket=${build}/mysql-test/var/tmp/mysqld.1.sock"
-alias mtrf="mtr --big-test --fast --parallel=10"
+alias mtrf="mtr --big-test --fast --parallel=$(nproc)"
 alias mtrb="mtrf --big-test"
-alias mtrz="mtr --fast --reorder --parallel=10"
+alias mtrz="mtr --fast --reorder --parallel=$(nproc)"
 alias mtrm="mtrz --suite=main"
 alias mtrv="mtrz --suite=versioning"
 alias mtrvv="mtrz --suite=period"
@@ -91,6 +92,7 @@ alias mtrpg="mtrp --manual-gdb"
 alias mtri="mtrz --suite=innodb"
 alias mtrig="mtri --manual-gdb"
 alias myh="mysqld --verbose --help | less"
+alias makez="make -j$(nproc)"
 
 br()
 {(
@@ -194,7 +196,7 @@ run()
         shift
     else
         cd "${bush_dir}"
-        defaults=mysqld.cnf
+        defaults=./mysqld.cnf
     fi
     exec "${opt}/bin/mysqld" "--defaults-file=$defaults" --debug-gdb --silent-startup "$@"
 )}
@@ -208,7 +210,7 @@ runval()
         shift
     else
         cd "${bush_dir}"
-        defaults=mysqld.cnf
+        defaults=./mysqld.cnf
     fi
     exec valgrind \
         --leak-check=no \
@@ -233,7 +235,7 @@ rund()
         shift
     else
         cd "${bush_dir}"
-        defaults=mysqld.cnf
+        defaults=./mysqld.cnf
     fi
     exec gdb -q $opt_run --args "${opt}/bin/mysqld" "--defaults-file=$defaults" --plugin-maturity=experimental --plugin-load=test_versioning --debug-gdb "$@"
 )}
@@ -263,7 +265,7 @@ runrr()
         shift
     else
         cd "${bush_dir}"
-        defaults=mysqld.cnf
+        defaults=./mysqld.cnf
     fi
     exec rr record "${opt}/bin/mysqld" "--defaults-file=$defaults" --plugin-maturity=experimental --plugin-load=test_versioning --debug-gdb --silent-startup "$@"
 )}
@@ -348,7 +350,9 @@ breaks()
 
 asan_opts=-DWITH_ASAN:BOOL=ON
 msan_opts=-DWITH_MSAN:BOOL=ON
-export debug_opts="-g -O0 -DEXTRA_DEBUG -Werror=overloaded-virtual -Werror=return-type -Wno-deprecated-register -Wno-error=macro-redefined -Wno-error=unused-variable -Wno-error=unused-function"
+export debug_opts="-g -O0 -DEXTRA_DEBUG -Werror=return-type -Wno-error=unused-variable -Wno-error=unused-function"
+export debug_opts_clang="-fno-limit-debug-info -Wno-error=macro-redefined -Werror=overloaded-virtual -Wno-deprecated-register"
+export linker_opts_clang="-fuse-ld=lld -Wl,--threads=8"
 
 conf()
 {(
@@ -387,6 +391,9 @@ prepare()
         -DCMAKE_BUILD_TYPE:STRING=Debug \
         -DCMAKE_CXX_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $CMAKE_C_FLAGS $CMAKE_CXX_FLAGS" \
         -DCMAKE_C_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $CMAKE_C_FLAGS" \
+        -DCMAKE_EXE_LINKER_FLAGS:STRING="$CMAKE_LDFLAGS" \
+        -DCMAKE_MODULE_LINKER_FLAGS:STRING="$CMAKE_LDFLAGS" \
+        -DCMAKE_SHARED_LINKER_FLAGS:STRING="$CMAKE_LDFLAGS" \
         -DSECURITY_HARDENED:BOOL=FALSE \
         -DMYSQL_MAINTAINER_MODE:STRING=OFF \
         -DUPDATE_SUBMODULES:BOOL=OFF \
@@ -446,10 +453,13 @@ rel_opts()
 )}
 export -f rel_opts
 
+### TODO: split Ninja and Clang, build Debug/Release with GCC/Clang with Ninja/Make
 ninja_opts()
 {(
     cmd="$1"
     export CMAKE_C_FLAGS="${CMAKE_C_FLAGS:+$CMAKE_C_FLAGS }-fdebug-macro"
+    export CMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS:+$CMAKE_CXX_FLAGS }${debug_opts_clang}"
+    export CMAKE_LDFLAGS="${CMAKE_LDFLAGS:+$CMAKE_LDFLAGS }${linker_opts_clang}"
     #libc_home=/usr/lib/llvm-14
     #export CFLAGS="${CFLAGS:+ $CFLAGS}-fdebug-macro -stdlib=libc++ -I${libc_home}/include/c++/v1 -L${libc_home}/lib -Wl,-rpath,${libc_home}/lib"
     shift
@@ -459,7 +469,6 @@ ninja_opts()
         -DCMAKE_C_COMPILER=/usr/bin/clang \
         -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
         -D_CMAKE_TOOLCHAIN_PREFIX=llvm-
-#        -D_CMAKE_TOOLCHAIN_SUFFIX=-7
 )}
 export -f ninja_opts
 
@@ -622,7 +631,7 @@ flavor > /dev/null
 
 upatch()
 {
-    arg=${1:-"-p1"}
+    arg=${1:-"-p0"}
     shift
     patch "$arg" "$@" < /tmp/u.diff
 }
@@ -654,8 +663,8 @@ cm_option_set()
 
 bush_cm_onoff_option()
 {
-    local opt="$1"
-    local val=$(cm_option_check "$opt")
+    local _opt="$1"
+    local _val=$(cm_option_check "$_opt")
     if [[ -n "$3" ]]
     then
         local help="$2"
@@ -666,14 +675,14 @@ bush_cm_onoff_option()
             echo "$help" >&2
             return 1;
         fi
-        if [[ "$val" != $nval ]]
+        if [[ "$_val" != $nval ]]
         then
             #cm_option_set "$1" "$nval" "${build}/CMakeCache.txt"
-            ninja_opts prepare -D$opt=$nval "$@"
+            ninja_opts prepare -D$_opt=$nval "$@"
         fi
-        cm_option_check "$opt"
+        cm_option_check "$_opt"
     else
-        echo $val
+        echo $_val
     fi
 }
 
@@ -691,8 +700,8 @@ msan()
         local msan_libs="/home/midenok/src/mariadb/msan-libs"
         local msan_include="${msan_libs}/build/llvm-toolchain-14-14.0.0/libc++msan/include/c++/v1"
         local msan_include2="${msan_libs}/build/llvm-toolchain-14-14.0.0/libcxxabi/include"
-        export CMAKE_C_FLAGS="-O2 ${CMAKE_C_FLAGS:+$CMAKE_C_FLAGS }-Wno-unused-command-line-argument -L${msan_libs} -I${msan_include} -I${msan_include2} -Wl,-rpath,${msan_libs}"
-        export CMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS:+$CMAKE_CXX_FLAGS }-std=c++11 -stdlib=libc++ -lc++abi"
+        export CMAKE_C_FLAGS="-O2 ${CMAKE_C_FLAGS:+$CMAKE_C_FLAGS }-Wno-unused-command-line-argument -L${msan_libs} -I${msan_include} -I${msan_include2} -stdlib=libc++ -lc++abi -Wl,-rpath,${msan_libs}"
+        export CMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS:+$CMAKE_CXX_FLAGS }-std=c++11"
         bush_cm_onoff_option WITH_MSAN:BOOL 'Usage: msan [off|on]' ON \
             -DWITH_EMBEDDED_SERVER=OFF -DWITH_UNIT_TESTS=OFF \
             -DWITH_INNODB_{BZIP2,LZ4,LZMA,LZO,SNAPPY}=OFF \

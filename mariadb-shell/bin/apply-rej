@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-optstring_long="comb:,diff,verbose,help"
-optstring_short="c:dvh"
+optstring_long="comb:,diff,keep-reject,verbose,help"
+optstring_short="c:dkvh"
 
 opts=$(getopt -o "${optstring_short}" --long "${optstring_long}" --name "$0" -- "$@") ||
     exit $?
@@ -10,6 +10,7 @@ eval set -- "$opts"
 
 unset opt_comb
 unset opt_diff
+unset opt_keep
 unset verbose_on
 unset verbose_off
 
@@ -22,6 +23,9 @@ do
         -d|--diff)
             opt_diff=true
             shift;;
+        -k|--keep-reject)
+            opt_keep=true
+            shift;;
         -v|--verbose)
             verbose_on="set -x"
             verbose_off="set +x"
@@ -30,6 +34,7 @@ do
             cat <<EOF
 -c ARG, --comb=ARG  Force combination name ARG
 -d, --diff          Generate rdiff results
+-k, --keep-reject   Keep original .reject
 EOF
             exit;;
         --) shift; break;;
@@ -50,18 +55,23 @@ do_apply()
         comb="${res#*,}"
     fi
 
-    if [[ -z "$comb" || "$opt_diff" != "true" ]]; then
+    if [ -z "$opt_diff" ]; then
         $verbose_on
         res="${res}.result"
-        mv "$rej" "$res"
+        if [ -n "$opt_keep" ]; then
+            cp "$rej" "$res"
+        else
+            mv "$rej" "$res"
+        fi
         $verbose_off
     else
         $verbose_on
+        local rdiff=${res}.rdiff
         res="${res%,$comb}.result"
         set +e
-        local rdiff=${rej%.reject}.rdiff
         diff -u --label "$(basename -- "$res")" --label "$(basename -- "$rej")" "$res" "$rej" > "$rdiff"
-        rm "$rej"
+        [ -z "$opt_keep" ] &&
+            rm "$rej"
         set -e
         $verbose_off
     fi
