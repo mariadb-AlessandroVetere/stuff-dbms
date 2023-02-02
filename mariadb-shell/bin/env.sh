@@ -454,7 +454,7 @@ rel_opts()
 export -f rel_opts
 
 ### TODO: split Ninja and Clang, build Debug/Release with GCC/Clang with Ninja/Make
-ninja_opts()
+ninja_clang_opts()
 {(
     cmd="$1"
     export CMAKE_C_FLAGS="${CMAKE_C_FLAGS:+$CMAKE_C_FLAGS }-fdebug-macro"
@@ -469,6 +469,16 @@ ninja_opts()
         -DCMAKE_C_COMPILER=/usr/bin/clang \
         -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
         -D_CMAKE_TOOLCHAIN_PREFIX=llvm-
+)}
+export -f ninja_clang_opts
+
+ninja_opts()
+{(
+    cmd="$1"
+    shift
+    "$cmd" \
+        -GNinja \
+        "$@"
 )}
 export -f ninja_opts
 
