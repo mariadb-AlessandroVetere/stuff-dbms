@@ -379,6 +379,12 @@ prepare()
         compiler_flags="$(cat ~/compiler_flags)"
         compiler_flags="$(echo $compiler_flags)"
     fi
+    unset profile_flags
+    if [ -f ~/profile_flags ]
+    then
+        profile_flags="$(cat ~/profile_flags)"
+        profile_flags="$(echo $profile_flags)"
+    fi
     cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER= -DCMAKE_C_COMPILER_LAUNCHER="
     if [ -x $(which ccache) ]
     then
@@ -389,11 +395,11 @@ prepare()
     cmake-ln -Wno-dev \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Debug \
-        -DCMAKE_CXX_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $CMAKE_C_FLAGS $CMAKE_CXX_FLAGS" \
-        -DCMAKE_C_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $CMAKE_C_FLAGS" \
-        -DCMAKE_EXE_LINKER_FLAGS:STRING="$CMAKE_LDFLAGS" \
-        -DCMAKE_MODULE_LINKER_FLAGS:STRING="$CMAKE_LDFLAGS" \
-        -DCMAKE_SHARED_LINKER_FLAGS:STRING="$CMAKE_LDFLAGS" \
+        -DCMAKE_CXX_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $profile_flags $CMAKE_C_FLAGS $CMAKE_CXX_FLAGS" \
+        -DCMAKE_C_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $profile_flags $CMAKE_C_FLAGS" \
+        -DCMAKE_EXE_LINKER_FLAGS:STRING="$profile_flags $CMAKE_LDFLAGS" \
+        -DCMAKE_MODULE_LINKER_FLAGS:STRING="$profile_flags $CMAKE_LDFLAGS" \
+        -DCMAKE_SHARED_LINKER_FLAGS:STRING="$profile_flags $CMAKE_LDFLAGS" \
         -DSECURITY_HARDENED:BOOL=FALSE \
         -DMYSQL_MAINTAINER_MODE:STRING=OFF \
         -DUPDATE_SUBMODULES:BOOL=OFF \
