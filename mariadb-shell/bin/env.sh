@@ -417,6 +417,130 @@ prepare()
 )}
 export -f prepare
 
+prepare_sn()
+{(
+    mkdir -p "${build}"
+    cd "${build}"
+    unset plugins
+    if [ -f ~/plugin_exclude ]
+    then
+        while read a b
+        do
+            [ -n "$a" ] &&
+                plugins="$plugins -D$a=NO"
+        done < ~/plugin_exclude
+    fi
+    unset compiler_flags
+    if [ -f ~/compiler_flags ]
+    then
+        compiler_flags="$(cat ~/compiler_flags)"
+        compiler_flags="$(echo $compiler_flags)"
+    fi
+    unset profile_flags
+    if [ -f ~/profile_flags ]
+    then
+        profile_flags="$(cat ~/profile_flags)"
+        profile_flags="$(echo $profile_flags)"
+    fi
+    cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER= -DCMAKE_C_COMPILER_LAUNCHER="
+    # if [ -x $(which ccache) ]
+    # then
+    #    cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache"
+    # fi
+    # TODO: add DISABLE_PSI_FILE
+    #
+    # Note: SECURITY_HARDENED or MYSQL_MAINTAINER_MODE?
+    eval flavor_opts=\$${flavor}_opts
+    cmake-ln -Wno-dev \
+        -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
+        -DCMAKE_BUILD_TYPE:STRING=Release \
+        -DCMAKE_CXX_FLAGS:STRING="-g -O3 $compiler_flags $profile_flags $CMAKE_C_FLAGS $CMAKE_CXX_FLAGS" \
+        -DCMAKE_C_FLAGS:STRING="-g -O3 $compiler_flags $profile_flags $CMAKE_C_FLAGS" \
+        -DCMAKE_EXE_LINKER_FLAGS:STRING="-z relro -z now $profile_flags $CMAKE_LDFLAGS" \
+        -DCMAKE_MODULE_LINKER_FLAGS:STRING="-z relro -z now $profile_flags $CMAKE_LDFLAGS" \
+        -DCMAKE_SHARED_LINKER_FLAGS:STRING="-z relro -z now $profile_flags $CMAKE_LDFLAGS" \
+        -DCMAKE_C_COMPILER:FILEPATH=/usr/bin/gcc \
+        -DCMAKE_CXX_COMPILER:FILEPATH=/usr/bin/g++ \
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+        -DCONC_WITH_DYNCOL=NO \
+        -DCONC_WITH_EXTERNAL_ZLIB=NO \
+        -DCONC_WITH_MYSQLCOMPAT=NO \
+        -DCONC_WITH_UNIT_TESTS=NO \
+        -DENABLED_PROFILING=NO \
+        -DENABLE_DTRACE=NO \
+        -DGSSAPI_FOUND=FALSE \
+        -DMAX_INDEXES=128 \
+        -DMUTEXTYPE=futex \
+        -DMYSQL_MAINTAINER_MODE=NO \
+        -DPLUGIN_ARCHIVE=NO \
+        -DPLUGIN_AUDIT_NULL=NO \
+        -DPLUGIN_AUTH_0X0100=NO \
+        -DPLUGIN_AUTH_ED25519=NO \
+        -DPLUGIN_AUTH_GSSAPI=NO \
+        -DPLUGIN_AUTH_PAM_V1=NO \
+        -DPLUGIN_AUTH_SOCKET=NO \
+        -DPLUGIN_AUTH_TEST_PLUGIN=NO \
+        -DPLUGIN_BLACKHOLE=NO \
+        -DPLUGIN_CRACKLIB_PASSWORD_CHECK=NO \
+        -DPLUGIN_DAEMON_EXAMPLE=NO \
+        -DPLUGIN_DEBUG_KEY_MANAGEMENT=NO \
+        -DPLUGIN_DIALOG_EXAMPLES=NO \
+        -DPLUGIN_DISKS=NO \
+        -DPLUGIN_EXAMPLE=NO \
+        -DPLUGIN_EXAMPLE_KEY_MANAGEMENT=NO \
+        -DPLUGIN_FEDERATED=NO \
+        -DPLUGIN_FEDERATEDX=NO \
+        -DPLUGIN_FEEDBACK=NO \
+        -DPLUGIN_FILE_KEY_MANAGEMENT=NO \
+        -DPLUGIN_FTEXAMPLE=NO \
+        -DPLUGIN_HANDLERSOCKET=NO \
+        -DPLUGIN_LOCALES=NO \
+        -DPLUGIN_METADATA_LOCK_INFO=NO \
+        -DPLUGIN_OQGRAPH=NO \
+        -DPLUGIN_PERFSCHEMA=NO \
+        -DPLUGIN_QA_AUTH_CLIENT=NO \
+        -DPLUGIN_QA_AUTH_INTERFACE=NO \
+        -DPLUGIN_QA_AUTH_SERVER=NO \
+        -DPLUGIN_QUERY_CACHE_INFO=NO \
+        -DPLUGIN_QUERY_RESPONSE_TIME=NO \
+        -DPLUGIN_SEMISYNC_MASTER=NO \
+        -DPLUGIN_SEMISYNC_SLAVE=NO \
+        -DPLUGIN_SEQUENCE=NO \
+        -DPLUGIN_SERVER_AUDIT=NO \
+        -DPLUGIN_SIMPLE_PASSWORD_CHECK=NO \
+        -DPLUGIN_SQL_ERRLOG=NO \
+        -DPLUGIN_TEST_SQL_DISCOVERY=NO \
+        -DPLUGIN_TEST_VERSIONING=NO \
+        -DPLUGIN_USER_VARIABLES=NO \
+        -DSECURITY_HARDENED=OFF \
+        -DUPDATE_SUBMODULES=OFF \
+        -DUSE_ARIA_FOR_TMP_TABLES=OFF \
+        -DWITH_CSV_STORAGE_ENGINE=OFF \
+        -DWITH_DBUG_TRACE=OFF \
+        -DWITH_EXTRA_CHARSETS=none \
+        -DWITH_INNODB_AHI=OFF \
+        -DWITH_INNODB_BZIP2=OFF \
+        -DWITH_INNODB_LZ4=OFF \
+        -DWITH_INNODB_LZMA=OFF \
+        -DWITH_INNODB_LZO=OFF \
+        -DWITH_INNODB_ROOT_GUESS=OFF \
+        -DWITH_INNODB_SNAPPY=OFF \
+        -DWITH_MARIABACKUP=OFF \
+        -DWITH_NUMA=OFF \
+        -DWITH_PCRE=bundled \
+        -DWITH_SAFEMALLOC=OFF \
+        -DWITH_SYSTEMD=no \
+        -DWITH_UNIT_TESTS=OFF \
+        -DWITH_WSREP:BOOL=OFF \
+        -DWITH_ZLIB=bundled \
+        $flavor_opts \
+        $cclauncher \
+        $plugins \
+        "$@" \
+        "${src}"
+)}
+export -f prepare_sn
+
 prepare_strict()
 {(
     mkdir -p "${build}"
@@ -844,3 +968,6 @@ replay()
 {
     rr replay "$@" -- -q -ex continue -ex reverse-continue
 }
+
+[[ -f ~/work.sh ]] &&
+  source ~/work.sh
