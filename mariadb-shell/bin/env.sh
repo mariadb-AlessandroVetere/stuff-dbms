@@ -352,7 +352,7 @@ asan_opts=-DWITH_ASAN:BOOL=ON
 msan_opts=-DWITH_MSAN:BOOL=ON
 export debug_opts="-g -O0 -DEXTRA_DEBUG -Werror=return-type -Wno-error=unused-variable -Wno-error=unused-function"
 export debug_opts_clang="-fno-limit-debug-info -Wno-error=macro-redefined -Werror=overloaded-virtual -Wno-deprecated-register"
-export linker_opts_clang="-fuse-ld=lld -Wl,--threads=8"
+export linker_opts_clang="-fuse-ld=lld -Wl,--threads=24"
 
 conf()
 {(
@@ -640,6 +640,7 @@ export -f o1_opts
 
 alias relprepare="rel_opts prepare_strict"
 alias nprepare="ninja_opts prepare"
+alias clprepare="ninja_clang_opts prepare"
 alias nrelprepare="ninja_opts rel_opts prepare"
 alias o1prepare="ninja_opts o1_opts prepare"
 alias embprepare="emb_opts prepare"
