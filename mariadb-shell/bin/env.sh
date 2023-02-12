@@ -352,7 +352,8 @@ asan_opts=-DWITH_ASAN:BOOL=ON
 msan_opts=-DWITH_MSAN:BOOL=ON
 export debug_opts="-g -O0 -DEXTRA_DEBUG -Werror=return-type -Wno-error=unused-variable -Wno-error=unused-function"
 export debug_opts_clang="-fno-limit-debug-info -Wno-error=macro-redefined -Werror=overloaded-virtual -Wno-deprecated-register"
-export linker_opts_clang="-fuse-ld=lld -Wl,--threads=24"
+# FIXME: detect lld version and add -Wl,--threads=24
+export linker_opts_clang="-fuse-ld=lld"
 
 conf()
 {(
@@ -587,7 +588,8 @@ export -f rel_opts
 ninja_clang_opts()
 {(
     cmd="$1"
-    export CMAKE_C_FLAGS="${CMAKE_C_FLAGS:+$CMAKE_C_FLAGS }-fdebug-macro"
+    # FIXME: detect clang version and add -fdebug-macro
+    export CMAKE_C_FLAGS="${CMAKE_C_FLAGS:+$CMAKE_C_FLAGS }"
     export CMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS:+$CMAKE_CXX_FLAGS }${debug_opts_clang}"
     export CMAKE_LDFLAGS="${CMAKE_LDFLAGS:+$CMAKE_LDFLAGS }${linker_opts_clang}"
     #libc_home=/usr/lib/llvm-14
@@ -596,8 +598,8 @@ ninja_clang_opts()
     "$cmd" \
         "$@" \
         -GNinja \
-        -DCMAKE_C_COMPILER=/usr/bin/clang \
-        -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
+        -DCMAKE_C_COMPILER=clang \
+        -DCMAKE_CXX_COMPILER=clang++ \
         -D_CMAKE_TOOLCHAIN_PREFIX=llvm-
 )}
 export -f ninja_clang_opts
