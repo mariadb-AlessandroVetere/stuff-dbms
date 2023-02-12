@@ -1,0 +1,92 @@
+#!/bin/bash
+#
+# Generally:
+#
+# CMAKE_OPTION(M)=DEF(M), VAL(M1), VAL(M2), ..., VAL(MN)
+#
+# Try N variations for M CMake options. Two CMake options cannot have VAL() at
+# the same time, at least one of them has DEF().
+#
+# Examples:
+#
+# WITH_UBSAN=OFF
+#
+# This will not try any values for WITH_UBSAN, it is always OFF across the whole
+# testing.
+#
+# WITH_TSAN=OFF,ON
+#
+# This will keep OFF as default for WITH_TSAN unless it is tested, then the
+# value tested will be ON:
+#
+
+iterate_conf()
+{
+    local callback=$1
+    while IFS='=' read opt val
+    do
+        [[ "$opt" ]] ||
+            continue
+        while IFS=',' read def vals
+        do
+            eval $callback $opt $def $vals
+        done <<< $val
+    done < opt.conf
+}
+
+# 1. make default config into DEF_CONF
+
+DEF_CONF=""
+
+make_def_conf()
+{
+    local opt=$1
+    local def=$2
+    DEF_CONF="${DEF_CONF}${opt}=${def}"$'\n'
+}
+
+iterate_conf make_def_conf
+
+# 2. iterate variations for each option
+
+make_conf()
+{
+    local opt=$1
+    local val=$2
+    sed -re "s/^(\s*${opt}\s*)=.+$/\1=${val}/" <<< $DEF_CONF
+}
+
+make_command()
+{
+    while read
+    do
+        [[ "$REPLY" ]] &&
+            echo -D$REPLY
+    done
+}
+
+run_variations()
+{
+    local opt=$1
+    local def=$2
+    [[ -z "$3" ]] &&
+        return
+    local vals=$(tr ',' ' ' <<< $3)
+    for val in $vals
+    do
+        run_variation $(make_conf $opt $val|make_command)
+    done
+}
+
+run_variation()
+{(
+    echo "$@"
+    exit
+    cd "$build"
+    cmake "$@" "$src"
+    makez
+    mp
+)}
+
+run_variation $(cat <<< $DEF_CONF | make_command)
+iterate_conf run_variations
