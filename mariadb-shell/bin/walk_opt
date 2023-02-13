@@ -20,6 +20,12 @@
 # value tested will be ON:
 #
 
+set -e
+log_file="$log_dir/walk_opt.log"
+conf_file=walk_opt.conf
+# Values Separator
+VS=';'
+
 iterate_conf()
 {
     local callback=$1
@@ -27,11 +33,11 @@ iterate_conf()
     do
         [[ "$opt" ]] ||
             continue
-        while IFS=',' read def vals
+        while IFS=$VS read def vals
         do
             eval $callback $opt $def $vals
-        done <<< $val
-    done < opt.conf
+        done <<< "$val"
+    done < "$conf_file"
 }
 
 # 1. make default config into DEF_CONF
@@ -53,7 +59,7 @@ make_conf()
 {
     local opt=$1
     local val=$2
-    sed -re "s/^(\s*${opt}\s*)=.+$/\1=${val}/" <<< $DEF_CONF
+    sed -re "s/^(\s*${opt}\s*)=.+$/\1=${val}/" <<< "$DEF_CONF"
 }
 
 make_command()
@@ -71,7 +77,7 @@ run_variations()
     local def=$2
     [[ -z "$3" ]] &&
         return
-    local vals=$(tr ',' ' ' <<< $3)
+    local vals=$(tr "$VS" ' ' <<< $3)
     for val in $vals
     do
         run_variation $(make_conf $opt $val|make_command)
@@ -80,13 +86,20 @@ run_variations()
 
 run_variation()
 {(
-    echo "$@"
-    exit
+    echo "! Checking $@" | tee -a "$log_file"
     cd "$build"
-    cmake "$@" "$src"
-    makez
-    mp
+    cmake "$@" "$src" &>> "$log_dir/cmake.log"
+    make -j$(nproc)
+    mp -q2 | tee -a "$log_file"
 )}
 
-run_variation $(cat <<< $DEF_CONF | make_command)
+echo -n > "$log_dir/cmake.log"
+if [ -f "$log_file" ]
+then
+    prev_log="${log_file%.log}_$(date '+%Y%m%d_%H%M%S.log')"
+    mv "$log_file" "$prev_log"
+    echo "! Rotated to $prev_log"
+fi
+echo "! Logging to $log_file"
+run_variation $(cat <<< "$DEF_CONF" | make_command)
 iterate_conf run_variations
