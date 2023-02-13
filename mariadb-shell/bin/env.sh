@@ -358,7 +358,21 @@ export linker_opts_clang="-fuse-ld=lld"
 conf()
 {(
     cd "${build}"
-    ccmake "${src}"
+    ccmake "$@" "${src}"
+)}
+
+cmake()
+{(
+    cd "${build}"
+    local opts=""
+    if [[ "$CMAKE_LDFLAGS" ]]; then
+        local ldflags="${profile_flags}${profile_flags:+ }$CMAKE_LDFLAGS"
+        opts=$(echo \
+          -DCMAKE_EXE_LINKER_FLAGS:STRING=\"$ldflags\" \
+          -DCMAKE_MODULE_LINKER_FLAGS:STRING=\"$ldflags\" \
+          -DCMAKE_SHARED_LINKER_FLAGS:STRING=\"$ldflags\")
+    fi
+    eval $(which cmake-ln) $opts \"\$@\" \"${src}\"
 )}
 
 prepare()
@@ -971,6 +985,12 @@ replay()
 {
     rr replay "$@" -- -q -ex continue -ex reverse-continue
 }
+
+dmp()
+{
+  objdump -xC "$@"|less
+}
+export -f dmp
 
 [[ -f ~/work.sh ]] &&
   source ~/work.sh
