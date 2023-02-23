@@ -1,0 +1,16 @@
+#!/bin/bash
+a=$1
+b=$2
+shift 2
+
+git bisect start
+
+for r in $(git rev-list $a..$b --merges --first-parent)
+do
+    git rev-list $r^2 --not $r^
+done | xargs git bisect skip
+
+git bisect new $b
+git bisect old $a
+
+git bisect run bisect-run.sh "$@"
