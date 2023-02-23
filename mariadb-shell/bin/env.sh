@@ -458,14 +458,23 @@ prepare_sn()
         profile_flags="$(echo $profile_flags)"
     fi
     cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER= -DCMAKE_C_COMPILER_LAUNCHER="
-    # if [ -x $(which ccache) ]
-    # then
-    #    cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache"
-    # fi
+    if [ -x $(which ccache) ]
+    then
+       cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache"
+    fi
     # TODO: add DISABLE_PSI_FILE
     #
     # Note: SECURITY_HARDENED or MYSQL_MAINTAINER_MODE?
+    # profile_flags="$profile_flags"
+    compiler_flags="-Wa,-mbranches-within-32B-boundaries $compiler_flags"
     eval flavor_opts=\$${flavor}_opts
+    # Disables ccache
+    #    -DCMAKE_C_COMPILER:FILEPATH=/usr/bin/gcc \
+    #    -DCMAKE_CXX_COMPILER:FILEPATH=/usr/bin/g++ \
+
+    # This influences the build
+    #    -DSECURITY_HARDENED:BOOL=ON \
+
     cmake-ln -Wno-dev \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Release \
@@ -474,9 +483,10 @@ prepare_sn()
         -DCMAKE_EXE_LINKER_FLAGS:STRING="-z relro -z now $profile_flags $CMAKE_LDFLAGS" \
         -DCMAKE_MODULE_LINKER_FLAGS:STRING="-z relro -z now $profile_flags $CMAKE_LDFLAGS" \
         -DCMAKE_SHARED_LINKER_FLAGS:STRING="-z relro -z now $profile_flags $CMAKE_LDFLAGS" \
-        -DCMAKE_C_COMPILER:FILEPATH=/usr/bin/gcc \
-        -DCMAKE_CXX_COMPILER:FILEPATH=/usr/bin/g++ \
+        -DSECURITY_HARDENED:BOOL=OFF \
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+        -DDISABLE_SHARED:BOOL=OFF \
+        -DMYSQL_MAINTAINER_MODE:STRING=NO \
         -DCONC_WITH_DYNCOL=NO \
         -DCONC_WITH_EXTERNAL_ZLIB=NO \
         -DCONC_WITH_MYSQLCOMPAT=NO \
@@ -486,7 +496,6 @@ prepare_sn()
         -DGSSAPI_FOUND=FALSE \
         -DMAX_INDEXES=128 \
         -DMUTEXTYPE=futex \
-        -DMYSQL_MAINTAINER_MODE=NO \
         -DPLUGIN_ARCHIVE=NO \
         -DPLUGIN_AUDIT_NULL=NO \
         -DPLUGIN_AUTH_0X0100=NO \
@@ -527,7 +536,6 @@ prepare_sn()
         -DPLUGIN_TEST_SQL_DISCOVERY=NO \
         -DPLUGIN_TEST_VERSIONING=NO \
         -DPLUGIN_USER_VARIABLES=NO \
-        -DSECURITY_HARDENED=OFF \
         -DUPDATE_SUBMODULES=OFF \
         -DUSE_ARIA_FOR_TMP_TABLES=OFF \
         -DWITH_CSV_STORAGE_ENGINE=OFF \
@@ -656,6 +664,7 @@ export -f o1_opts
 
 alias relprepare="rel_opts prepare_strict"
 alias nprepare="ninja_opts prepare"
+alias nprepare2="ninja_opts prepare_sn"
 alias clprepare="ninja_clang_opts prepare"
 alias nrelprepare="ninja_opts rel_opts prepare"
 alias o1prepare="ninja_opts o1_opts prepare"
