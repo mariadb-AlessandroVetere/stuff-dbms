@@ -80,17 +80,23 @@ run_variations()
     local vals=$(tr "$VS" ' ' <<< $3)
     for val in $vals
     do
-        run_variation $(make_conf $opt $val|make_command)
+        run_variation "-D$opt=$val" $(make_conf $opt $val|make_command)
     done
 }
 
 run_variation()
 {(
-    echo "! Checking $@" | tee -a "$log_file"
+    local dopt=$1
+    shift
+    echo "! Config $@" >> "$log_file"
+    echo "! Checking $dopt" | tee -a "$log_file"
     cd "$build"
     cmake "$@" "$src" &>> "$log_dir/cmake.log"
-    make -j$(nproc)
-    mp -q2 | tee -a "$log_file"
+    make clean &>> "$log_dir/cmake.log"
+    make -j$(nproc) &>> "$log_dir/cmake.log"
+    file sql/mysqld | tee -a "$log_file"
+    md5sum sql/mysqld | tee -a "$log_file"
+    mp -q -X3| tee -a "$log_file"
 )}
 
 echo -n > "$log_dir/cmake.log"
