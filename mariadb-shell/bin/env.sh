@@ -14,6 +14,8 @@ else
     fi
 fi
 
+unset which
+
 export bush_dir=$(dirname $script)
 export src="${bush_dir}/src"
 export proj_dir=$(readlink -ne "${bush_dir}/..")
@@ -152,10 +154,9 @@ mtrleak()
 }
 
 
-mysql_client=$(which mysql)
-
 mysql()
 {(
+    mysql_client=${mysql_client:-$(which mysql)}
     db=${1:-test}
     shift
     [ -x "`which most`" ] &&
@@ -180,6 +181,7 @@ backupd()
 
 mysqlt()
 {(
+    mysql_client=${mysql_client:-$(which mysql)}
     db=${1:-mtr}
     shift
     [ -x "`which most`" ] &&
@@ -357,12 +359,14 @@ export linker_opts_clang="-fuse-ld=lld"
 
 conf()
 {(
+    mkdir -p "${build}"
     cd "${build}"
     ccmake "$@" "${src}"
 )}
 
 cmake()
 {(
+    mkdir -p "${build}"
     cd "${build}"
     local opts=""
     if [[ "$CMAKE_LDFLAGS" ]]; then

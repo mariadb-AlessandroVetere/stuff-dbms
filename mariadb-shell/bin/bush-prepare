@@ -9,6 +9,7 @@ from_home=$(cat <<EOF
 .local
 .config
 .aptitude
+.bash_profile
 EOF
 )
 
@@ -200,16 +201,16 @@ then
     make_links
 fi
 
+if ! $selection || $select_skel
+then
+    copy_skel
+fi
+
 HOME=$m
 
 if ! $update
 then
     prepare_source
-fi
-
-if ! $selection || $select_skel
-then
-    copy_skel
 fi
 
 if ! $selection || $select_project

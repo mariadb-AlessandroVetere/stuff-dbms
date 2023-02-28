@@ -12,10 +12,13 @@ need_build()
         echo -n '-'
         return
     }
-    make -n | /bin/grep -Fq 'Linking' && {
+    if make -n 2>/dev/null | /bin/grep -Fq 'Linking'; then
         echo -n '*'
         return
-    }
+    elif [[ ${PIPESTATUS[0]} != 0 ]]; then
+        echo -n '-'
+        return
+    fi
 }
 export -f need_build
 
