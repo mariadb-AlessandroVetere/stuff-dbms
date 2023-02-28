@@ -26,8 +26,8 @@ selection=false
 select_project=false
 select_links=false
 select_skel=false
-copy_from=trunk
-clone_from="git@github.com:mariadb/mariadb"
+copy_from=
+clone_from="git@github.com:MariaDB/server.git"
 force_cleanup=false
 unset verbose_on
 unset verbose_off
@@ -76,7 +76,7 @@ do
         -c|--copy-from|--copy   Local repo
         -C|--clone-from|--clone     Remote repo
         -u|--update                 Update files even if repo exists
-        -F|--force-clenaup|--force  Delete everything in existing repo!
+        -F|--force-cleanup|--force  Delete everything in existing repo!
         -p|--project                Update project
         -l|--links                  Update links
         -k|--skel                   Update skel
@@ -201,11 +201,6 @@ then
 fi
 
 HOME=$m
-
-set +e
-source .bashrc || true
-trap debug
-set -e
 
 if ! $update
 then

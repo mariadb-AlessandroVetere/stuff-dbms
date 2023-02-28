@@ -564,6 +564,64 @@ prepare_sn()
 )}
 export -f prepare_sn
 
+prepare_snow()
+{(
+    mkdir -p "${build}"
+    cd "${build}"
+    unset plugins
+    if [ -f ~/plugin_exclude ]
+    then
+        while read a b
+        do
+            [ -n "$a" ] &&
+                plugins="$plugins -D$a=NO"
+        done < ~/plugin_exclude
+    fi
+    unset compiler_flags
+    if [ -f ~/compiler_flags ]
+    then
+        compiler_flags="$(cat ~/compiler_flags)"
+        compiler_flags="$(echo $compiler_flags)"
+    fi
+    unset profile_flags
+    if [ -f ~/profile_flags ]
+    then
+        profile_flags="$(cat ~/profile_flags)"
+        profile_flags="$(echo $profile_flags)"
+    fi
+    cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER= -DCMAKE_C_COMPILER_LAUNCHER="
+    if [ -x $(which ccache) ]
+    then
+       cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache"
+    fi
+    # TODO: add DISABLE_PSI_FILE
+    #
+    # Note: SECURITY_HARDENED or MYSQL_MAINTAINER_MODE?
+    # profile_flags="$profile_flags"
+    eval flavor_opts=\$${flavor}_opts
+    # Disables ccache
+    #    -DCMAKE_C_COMPILER:FILEPATH=/usr/bin/gcc \
+    #    -DCMAKE_CXX_COMPILER:FILEPATH=/usr/bin/g++ \
+
+    # This influences the build
+    #    -DSECURITY_HARDENED:BOOL=ON \
+
+    cmake-ln -Wno-dev \
+        -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
+        -DBUILD_CONFIG=snow \
+        -DCMAKE_CXX_FLAGS:STRING="$compiler_flags $profile_flags $CMAKE_C_FLAGS $CMAKE_CXX_FLAGS" \
+        -DCMAKE_C_FLAGS:STRING="$compiler_flags $profile_flags $CMAKE_C_FLAGS" \
+        -DCMAKE_EXE_LINKER_FLAGS:STRING="$profile_flags $CMAKE_LDFLAGS" \
+        -DCMAKE_MODULE_LINKER_FLAGS:STRING="$profile_flags $CMAKE_LDFLAGS" \
+        -DCMAKE_SHARED_LINKER_FLAGS:STRING="$profile_flags $CMAKE_LDFLAGS" \
+        $flavor_opts \
+        $cclauncher \
+        $plugins \
+        "$@" \
+        "${src}"
+)}
+export -f prepare_snow
+
 prepare_strict()
 {(
     mkdir -p "${build}"
@@ -665,6 +723,7 @@ export -f o1_opts
 alias relprepare="rel_opts prepare_strict"
 alias nprepare="ninja_opts prepare"
 alias nprepare2="ninja_opts prepare_sn"
+alias nprepare3="ninja_opts prepare_snow"
 alias clprepare="ninja_clang_opts prepare"
 alias nrelprepare="ninja_opts rel_opts prepare"
 alias o1prepare="ninja_opts o1_opts prepare"
