@@ -28,11 +28,15 @@ select_project=false
 select_links=false
 select_skel=false
 copy_from=
-clone_from="git@github.com:MariaDB/server.git"
+clone_from="samu git@github.com:mariadb-corporation/mariadb-samurai.git"
+remote_add="mariadb git@github.com:MariaDB/server.git"
+checkout="10.4.20samurai"
+submodules="extra/wolfssl/wolfssl libmariadb"
 force_cleanup=false
 unset verbose_on
 unset verbose_off
 unset verbose
+unset CDPATH
 verbose_echo="true"
 
 while true
@@ -44,6 +48,7 @@ do
         -C|--clone-from|--clone)
             [ "$2" -a "$2" != '-' ] &&
                 clone_from=$2
+            # FIXME: prepend "origin" if there is no remote name
             shift 2;;
         -F|--force-cleanup|--force)
             force_cleanup=true
@@ -173,14 +178,20 @@ make_links()
 }
 
 prepare_source()
-{
+{(
     if [ -z "${copy_from}" ]
     then
-        $verbose git clone "${clone_from}" src
+        $verbose git clone -n -o $clone_from src
+        remote=$(echo "$clone_from"|(read a b; echo $a))
+        cd src
+        $verbose git checkout -b $checkout $remote/$checkout
+        [[ "$submodules" ]] &&
+            $verbose git submodule update --init --recursive $submodules
+        $verbose git remote add $remote_add
     else
         $verbose rsync -aP "${homepath}/${copy_from}/src/" src
     fi
-}
+)}
 
 copy_skel()
 {
@@ -201,16 +212,17 @@ then
     make_links
 fi
 
-if ! $selection || $select_skel
-then
-    copy_skel
-fi
-
 HOME=$m
 
 if ! $update
 then
     prepare_source
+fi
+
+# This must be after prepare_source otherwise git clone fails on existing src/
+if ! $selection || $select_skel
+then
+    copy_skel
 fi
 
 if ! $selection || $select_project
