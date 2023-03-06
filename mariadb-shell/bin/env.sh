@@ -20,6 +20,7 @@ export bush_dir=$(dirname $script)
 export src="${bush_dir}/src"
 export proj_dir=$(readlink -ne "${bush_dir}/..")
 export log_dir="${bush_dir}/log"
+export tarball_dir="/home/ec2-user"
 
 CDPATH=$(echo $CDPATH|sed -Ee 's|'${bush_dir}'[^:]*:?||g')
 CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src}/storage/innobase:${src}/mysql-test/suite:${src}/mysql-test:${build}/mysql-test"
@@ -669,7 +670,7 @@ rel_opts()
 export -f rel_opts
 
 ### TODO: split Ninja and Clang, build Debug/Release with GCC/Clang with Ninja/Make
-ninja_clang_opts()
+clang_opts()
 {(
     cmd="$1"
     # FIXME: detect clang version and add -fdebug-macro
@@ -681,12 +682,11 @@ ninja_clang_opts()
     shift
     "$cmd" \
         "$@" \
-        -GNinja \
         -DCMAKE_C_COMPILER=clang \
         -DCMAKE_CXX_COMPILER=clang++ \
         -D_CMAKE_TOOLCHAIN_PREFIX=llvm-
 )}
-export -f ninja_clang_opts
+export -f clang_opts
 
 ninja_opts()
 {(
@@ -697,6 +697,8 @@ ninja_opts()
         "$@"
 )}
 export -f ninja_opts
+
+alias ninja_clang_opts="ninja_opts clang_opts"
 
 emb_opts()
 {
@@ -1063,6 +1065,16 @@ dmp()
   objdump -xC "$@"|less
 }
 export -f dmp
+
+tarball()
+{
+  local out="${tarball_dir}/mariadb-$(date +%y%m%d_%H%M).txz"
+  cp "${build}/CMakeCache.txt" "$opt"
+  git log -n 10 > ${opt}/revision.txt
+  tar -cJvhf "$out" -C "$opt" "$@" .
+  echo "Written ${out}"
+}
+export -f tarball
 
 [[ -f ~/work.sh ]] &&
   source ~/work.sh
