@@ -693,8 +693,8 @@ ninja_opts()
     cmd="$1"
     shift
     "$cmd" \
-        -GNinja \
-        "$@"
+        "$@" \
+        -GNinja
 )}
 export -f ninja_opts
 
