@@ -1,0 +1,27 @@
+#!/bin/bash
+src_dir=$(dirname $(readlink -f "$0"))
+dst_dir=~/src/mariadb
+mkdir -p "$dst_dir" ~/bin
+ln -st "${dst_dir}" "${src_dir}/bin" "${src_dir}/data" "${src_dir}/.bashrc.inc"
+ln -sf "${dst_dir}/bin/bush-prepare" ~/bin
+
+banner='Added by bush installation'
+grep -q "$banner" ~/.bashrc || cat << EOF >>~/.bashrc
+
+### ${banner}:
+source "${dst_dir}/.bashrc.inc"
+EOF
+
+if [[ ! -x "$(which cmake-ln 2>/dev/null)" ]]
+then
+    echo "* ln-install not found, installing from https://github.com/midenok/ln-install:"
+    (
+      cd ~/src
+      git clone git@github.com:midenok/ln-install.git ln-install
+      ln-install/install-this
+    )
+fi
+
+echo "* Installed bush to ${dst_dir} (now .bashrc.inc is sourced to your shell)"
+echo "! Reload your .bashrc with below command:"
+echo ". ~/.bashrc"
