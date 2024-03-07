@@ -9,7 +9,7 @@ do
 
     if grep -q '^<<<<<<< ' "${src[@]}"
     then
-        (cd ~/src; emacs "${src[@]}") ||
+        (emacs "${src[@]}") ||
             break
 
         ([ "$opt" = only ] || grep -q '^<<<<<<< ' "${src[@]}") &&
@@ -25,7 +25,8 @@ do
     git add "${src[@]}" ||
         break
 
-    git rebase --continue
+    git rebase --continue ||
+        break
 done
 
 

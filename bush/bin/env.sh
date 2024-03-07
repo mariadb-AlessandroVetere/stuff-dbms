@@ -22,9 +22,6 @@ export proj_dir=$(readlink -ne "${bush_dir}/..")
 export log_dir="${bush_dir}/log"
 export tarball_dir="/home/ec2-user"
 
-CDPATH=$(echo $CDPATH|sed -Ee 's|'${bush_dir}'[^:]*:?||g')
-CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src}/storage/innobase:${src}/mysql-test/suite:${src}/mysql-test:${build}/mysql-test"
-
 export MYSQL_UNIX_PORT="${bush_dir}/run/mysqld.sock"
 export MTR_BINDIR="$build"
 export CCACHE_BASEDIR="${bush_dir}"
@@ -49,53 +46,82 @@ opt_fts="--mysqld=--innodb_ft_sort_pll_degree=1"
 mtr()
 {(
     mkdir -p "$log_dir"
+    export MTR_BINDIR="$build"
     if [ -x ./mysql-test-run.pl ]
     then
-        mtr_script=./mysql-test-run.pl
+        mtr_script=$(readlink -f ./mysql-test-run.pl)
+    elif [ -x ./mariadb-test-run.pl ]
+    then
+        mtr_script=$(readlink -f ./mariadb-test-run.pl)
+    elif [ -x "$src/mysql-test/mysql-test-run.pl" ]
+    then
+        cd "$src/mysql-test"
+        mtr_script="./mysql-test-run.pl"
+    elif [ -x "$src/mysql-test/mariadb-test-run.pl" ]
+    then
+        cd "$src/mysql-test"
+        mtr_script="./mariadb-test-run.pl"
     else
-        mtr_script=mysql-test-run
-        cd "$log_dir"
-        rm `find -name '*.log' -type f -ctime +30`
+        echo "Cannot find MTR script!" >&2
+        exit 1
     fi
+    if [ "$1" = "PERLDB" ]
+    then
+        shift
+        mtr_script="perl -d $mtr_script"
+    elif [ "$1" = "GDB" ]
+    then
+        shift
+        mtr_script="gdb --args perl -MEnbugger $mtr_script"
+    elif [ "$1" = "RR" ]
+    then
+        shift
+        mtr_script="rr record $mtr_script"
+    fi
+    rm `find "$log_dir" -name '*.log' -type f -ctime +30` &> /dev/null
     unset exclude_opts
     [ -f ~/tests_exclude ] &&
         exclude_opts="--skip-test-list=${HOME}/tests_exclude"
-    [ -f mtr.log ] &&
-        mv mtr.log $(date '+mtr_%Y%m%d_%H%M%S.log')
+    [ -f "${log_dir}/mtr.log" ] &&
+        mv "${log_dir}/mtr.log" "${log_dir}/"$(date '+mtr_%Y%m%d_%H%M%S.log')
     # Using --mem makes var/ path always different!
     exec $mtr_script \
         --force \
         --max-test-fail=0 \
-        --debug-sync-timeout=2 \
         --suite-timeout=1440 \
         --mysqld=--silent-startup \
-        --mysqld=--loose-innodb-flush-method=fsync \
+        --suite="main-,archive-,binlog-,csv-,federated-,funcs_1-,funcs_2-,gcol-,handler-,heap-,innodb-,innodb_fts-,innodb_gis-,json-,maria-,mariabackup-,multi_source-,optimizer_unfixed_bugs-,parts-,perfschema-,plugins-,roles-,rpl-,sys_vars-,unit-,vcol-,versioning-,period-" \
         ${mtr_opts} \
         ${exclude_opts} \
-        "$@" 2>&1 | tee -a mtr.log
+        "$@" 2>&1 | tee -a "${log_dir}/mtr.log"
     return $PIPESTATUS
+#        --mysqld=--loose-innodb-flush-method=fsync \
 #        --suite="main-,archive-,binlog-,client-,csv-,federated-,funcs_1-,funcs_2-,gcol-,handler-,heap-,innodb-,innodb_fts-,innodb_gis-,innodb_i_s-,json-,maria-,mariabackup-,multi_source-,optimizer_unfixed_bugs-,parts-,perfschema-,plugins-,roles-,rpl-,sys_vars-,sql_sequence-,unit-,vcol-,versioning-,period-,sysschema-" \
 #        --suite="main-,archive-,binlog-,csv-,federated-,funcs_1-,funcs_2-,gcol-,handler-,heap-,innodb-,innodb_fts-,innodb_gis-,json-,maria-,mariabackup-,multi_source-,optimizer_unfixed_bugs-,parts-,perfschema-,plugins-,roles-,rpl-,sys_vars-,unit-,vcol-,versioning-,period-,sysschema-" \
 )}
 
-alias mtrh="mysql-test-run --help | less"
+alias mtrh="mtr --help | less"
 alias mtrx="mtr --extern socket=${MYSQL_UNIX_PORT}"
 alias mtrx1="mtr --extern socket=${build}/mysql-test/var/tmp/mysqld.1.sock"
 alias mtrf="mtr --big-test --fast --parallel=$(nproc)"
 alias mtrb="mtrf --big-test"
 alias mtrz="mtr --fast --reorder --parallel=$(nproc)"
+alias mtrzz="mtrz --debug-sync-timeout=2"
 alias mtrm="mtrz --suite=main"
 alias mtrv="mtrz --suite=versioning"
 alias mtrvv="mtrz --suite=period"
-alias mtrvvg="mtr --manual-gdb --suite=period"
-alias mtrg="mtr --manual-gdb"
-alias mtrvg="mtr --manual-gdb --suite=versioning"
+alias mtrg="mtr --manual-gdb --mysqld=--use-stat-tables=never"
+alias mtrvvg="mtrg --suite=period"
+alias mtrvg="mtrg --suite=versioning"
 alias mtrp="mtrz --suite=parts"
 alias mtrpg="mtrp --manual-gdb"
 alias mtri="mtrz --suite=innodb"
 alias mtrig="mtri --manual-gdb"
 alias myh="mysqld --verbose --help | less"
 alias makez="make -j$(nproc)"
+alias mtrpd="mtr PERLDB"
+alias mtrpg="mtr GDB"
+alias mtrpr="mtr RR"
 
 br()
 {(
@@ -162,7 +188,8 @@ mysql()
     shift
     [ -x "`which most`" ] &&
         export PAGER=most
-    "$mysql_client" -S "${bush_dir}/run/mysqld.sock" -u root "$db" "$@"
+    sock=${MYSQL_UNIX_PORT:-"${bush_dir}/run/mysqld.sock"}
+    "$mysql_client" -S "$MYSQL_UNIX_PORT" -u root "$db" "$@"
 )}
 
 
@@ -284,8 +311,12 @@ binlog()
         shift
     fi
 
+    local log_file=""
+    [[ "$1" ]] ||
+      log_file="${build}/mysql-test/var/mysqld.1/data/master-bin.000001"
+
     exec $run_gdb "${opt}/bin/mysqlbinlog" "--defaults-file=${defaults}" \
-        --local-load="${build}/var/tmp" -v "$@"
+        --local-load="${build}/var/tmp" -v "$@" "$log_file"
 )}
 export -f binlog
 
@@ -299,9 +330,56 @@ dump()
     fi
     db=${1:-test}
     shift
-    exec $run_gdb "$(which mysqldump)" "--defaults-file=${defaults}" "$db" "$@"
+    exec $run_gdb "$(which mysqldump)" "--defaults-file=${defaults}" -u root "$db" "$@"
 )}
 export -f dump
+
+admin()
+{(
+    local run_gdb=""
+    if [ "$1" = "-gdb" ]
+    then
+        run_gdb="gdb -q -ex run --args"
+        shift
+    fi
+    cmd=${1:-status}
+    shift
+    exec $run_gdb "$(which mysqladmin)" "--defaults-file=${defaults}" -u root "$cmd" "$@"
+)}
+export -f admin
+
+bench()
+{(
+    if [ "$1" = "drop" ]; then
+        mysql <<< "drop database sbtest"
+        exit
+    elif [ "$1" = "create" ]; then
+        mysql <<< "create or replace database sbtest"
+        exit
+    elif [ "$1" = ls ]; then
+        find /usr/share/sysbench/ -type f
+        exit
+    fi
+    if [[ "$1" == /usr/share/sysbench/* ]]; then
+        plan="$1"
+        shift
+    else
+        plan=/usr/share/sysbench/oltp_insert.lua
+    fi
+    cmd=${1:-run}
+    shift
+    if [ "$cmd" = "fullest" ]; then
+        bench create
+        bench "$plan" full
+        exit
+    elif [ "$cmd" = "full" ]; then
+        bench "$plan" prepare
+        bench "$plan" run
+        exit
+    fi
+    "$(which sysbench)" --mysql-socket=$MYSQL_UNIX_PORT --mysql-user=root --time=3 "$plan" "$cmd" "$@"
+)}
+export -f bench
 
 gdbt()
 {(
@@ -354,7 +432,7 @@ breaks()
 asan_opts=-DWITH_ASAN:BOOL=ON
 msan_opts=-DWITH_MSAN:BOOL=ON
 export debug_opts="-g -O0 -DEXTRA_DEBUG -Werror=return-type -Wno-error=unused-variable -Wno-error=unused-function"
-export debug_opts_clang="-fno-limit-debug-info -Wno-error=macro-redefined -Werror=overloaded-virtual -Wno-deprecated-register"
+export debug_opts_clang="-gdwarf-4 -fno-limit-debug-info -Wno-error=macro-redefined -Werror=overloaded-virtual -Wno-deprecated-register -Wno-inconsistent-missing-override"
 # FIXME: detect lld version and add -Wl,--threads=24
 export linker_opts_clang="-fuse-ld=lld"
 
@@ -655,8 +733,9 @@ prepare_strict()
 export -f prepare_strict
 
 rel_opts()
-{(
-    build="${build}-rel"
+{
+    flavor rel
+(
     cmd="$1"
     shift
     "$cmd" \
@@ -674,9 +753,9 @@ clang_opts()
 {(
     cmd="$1"
     # FIXME: detect clang version and add -fdebug-macro
-    export CMAKE_C_FLAGS="${CMAKE_C_FLAGS:+$CMAKE_C_FLAGS }"
+    export CMAKE_C_FLAGS="${CMAKE_C_FLAGS:+$CMAKE_C_FLAGS }${debug_opts_clang}"
     export CMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS:+$CMAKE_CXX_FLAGS }${debug_opts_clang}"
-    export CMAKE_LDFLAGS="${CMAKE_LDFLAGS:+$CMAKE_LDFLAGS }${linker_opts_clang}"
+    export CMAKE_LDFLAGS="${CMAKE_LDFLAGS:+$CMAKE_LDFLAGS }${linker_opts_clang} ${debug_opts_clang}"
     #libc_home=/usr/lib/llvm-14
     #export CFLAGS="${CFLAGS:+ $CFLAGS}-fdebug-macro -stdlib=libc++ -I${libc_home}/include/c++/v1 -L${libc_home}/lib -Wl,-rpath,${libc_home}/lib"
     shift
@@ -726,14 +805,16 @@ o1_opts()
 export -f o1_opts
 
 
-alias relprepare="rel_opts prepare_strict"
 alias nprepare="ninja_opts prepare"
 alias nprepare2="ninja_opts prepare_sn"
 alias nprepare3="ninja_opts prepare_snow"
 alias clprepare="ninja_clang_opts prepare"
-alias nrelprepare="ninja_opts rel_opts prepare"
 alias o1prepare="ninja_opts o1_opts prepare"
 alias embprepare="emb_opts prepare"
+# rel_opts musts be first as it updates $build and $opt
+alias relprepare="rel_opts prepare_strict"
+alias nrelprepare="rel_opts ninja_opts prepare"
+alias clrelprepare="rel_opts ninja_opts clang_opts prepare"
 
 relcheck()
 {(
@@ -793,9 +874,12 @@ make()
     fi
     if [ -f Makefile ]
     then
+        # TODO: BUILD_TYPE, MSAN, UBSAN, SECURITY_HARDENED, WSREP, SSL, PCRE
+        echo "ASAN: $(asan); emb: $(emb)"
         _run_exe make "$@"
     elif [ -f build.ninja ]
     then
+        echo "ASAN: $(asan); emb: $(emb)"
         _run_exe ninja "$@"
     elif [ -d "$build" -a "$recurse" != norecurse ]
     then (
@@ -803,6 +887,7 @@ make()
         make norecurse "$@"
     )
     else
+        echo "ASAN: $(asan); emb: $(emb)"
         _run_exe make "$@"
     fi
 }
@@ -856,9 +941,13 @@ flavor()
     export opt="${build}/opt"
     PATH=$(echo $PATH|sed -Ee 's|'${bush_dir}'[^:]*:?||g')
     PATH="${opt}/bin:${proj_dir}/test:${opt}/scripts:${opt}/mysql-test:${opt}/sql-bench:${bush_dir}:${bush_dir}/bin:${bush_dir}/issues:${PATH}"
+    CDPATH=$(echo $CDPATH|sed -Ee 's|'${bush_dir}'[^:]*:?||g')
+    CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src}/storage/innobase:${src}/mysql-test/suite:${src}/mysql-test:${src}/extra:${build}/mysql-test:${HOME}:${HOME}/tmp"
 }
 
 flavor > /dev/null
+
+alias dflavor="flavor default"
 
 upatch()
 {
@@ -929,9 +1018,9 @@ msan()
     if [ "$nval" = ON ]
     then
         local msan_libs="/home/midenok/src/mariadb/msan-libs"
-        local msan_include="${msan_libs}/build/llvm-toolchain-14-14.0.0/libc++msan/include/c++/v1"
-        local msan_include2="${msan_libs}/build/llvm-toolchain-14-14.0.0/libcxxabi/include"
-        export CMAKE_C_FLAGS="-O2 ${CMAKE_C_FLAGS:+$CMAKE_C_FLAGS }-Wno-unused-command-line-argument -L${msan_libs} -I${msan_include} -I${msan_include2} -stdlib=libc++ -lc++abi -Wl,-rpath,${msan_libs}"
+        local msan_include="${msan_libs}/include"
+        #local msan_include2="${msan_libs}/build/llvm-toolchain-14-14.0.6/libcxxabi/include"
+        export CMAKE_C_FLAGS="-O2 ${CMAKE_C_FLAGS:+$CMAKE_C_FLAGS }-Wno-unused-command-line-argument -L${msan_libs} -I${msan_include} -stdlib=libc++ -lc++abi -Wl,-rpath,${msan_libs}"
         export CMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS:+$CMAKE_CXX_FLAGS }-std=c++11"
         bush_cm_onoff_option WITH_MSAN:BOOL 'Usage: msan [off|on]' ON \
             -DWITH_EMBEDDED_SERVER=OFF -DWITH_UNIT_TESTS=OFF \
@@ -1062,19 +1151,60 @@ replay()
 
 dmp()
 {
-  objdump -xC "$@"|less
+    objdump -xC "$@"|less
 }
 export -f dmp
 
 tarball()
 {
-  local out="${tarball_dir}/mariadb-$(date +%y%m%d_%H%M).txz"
-  cp "${build}/CMakeCache.txt" "$opt"
-  git log -n 10 > ${opt}/revision.txt
-  tar -cJvhf "$out" -C "$opt" "$@" .
-  echo "Written ${out}"
+    local out="${tarball_dir}/mariadb-$(date +%y%m%d_%H%M).txz"
+    cp "${build}/CMakeCache.txt" "$opt"
+    git log -n 10 > ${opt}/revision.txt
+    tar -cJvhf "$out" -C "$opt" "$@" .
+    echo "Written ${out}"
 }
 export -f tarball
 
+# Print JIRA links of commits
+
+cb()
+{
+    if [ -n "$DISPLAY" -a -n "$(which xclip)" ]
+    then
+        xclip -i -f -selection clipboard
+    else
+        cat
+    fi
+}
+export -f cb
+
+jira()
+{
+    local arg
+    [[ $# -eq 0 ]] &&
+        arg=HEAD~..HEAD
+    git log --first-parent --pretty=short $arg "$@" |
+        grep -P "^\s*MDEV-\d\d\d\d\d " |
+        (while read a b; do echo https://jira.mariadb.org/browse/$a; done) |
+        cb
+}
+export -f jira
+
+# Cut timestamp from log files (compatible with mydumper logs)
+cut_ts()
+{
+    perl -pe 's/\d{4}-\d\d-\d\d \d\d:\d\d:\d\d \[\w+\] - //'
+}
+export -f cut_ts
+
+# Cut thread from log files (compatible with mydumper logs)
+cut_thr()
+{
+    perl -pe 's/Thread \d+: //'
+}
+export -f cut_thr
+
 [[ -f ~/work.sh ]] &&
   source ~/work.sh
+
+# kate: space-indent on; indent-width 4; mixedindent off; indent-mode cstyle;

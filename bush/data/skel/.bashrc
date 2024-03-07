@@ -39,3 +39,10 @@ export CDPATH=".:~"
 alias reconf="source ~/.bashrc"
 
 source ~/env.sh
+
+ulimit -c unlimited
+if [[ `ulimit -c` != unlimited ]]
+then
+    echo "Hard core limit: $(ulimit -c)"
+fi
+
