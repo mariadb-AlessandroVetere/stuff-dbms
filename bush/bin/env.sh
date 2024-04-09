@@ -574,6 +574,7 @@ prepare_sn()
     #    -DSECURITY_HARDENED:BOOL=ON \
 
     cmake-ln -Wno-dev \
+        -DBUILD_CONFIG:STRING=mysql_release \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Release \
         -DCMAKE_CXX_FLAGS:STRING="-g -O3 $compiler_flags $profile_flags $CMAKE_C_FLAGS $CMAKE_CXX_FLAGS" \
@@ -646,7 +647,7 @@ prepare_sn()
         -DWITH_INNODB_LZO=OFF \
         -DWITH_INNODB_ROOT_GUESS=OFF \
         -DWITH_INNODB_SNAPPY=OFF \
-        -DWITH_MARIABACKUP=OFF \
+        -DWITH_MARIABACKUP=ON \
         -DWITH_NUMA=OFF \
         -DWITH_PCRE=bundled \
         -DWITH_SAFEMALLOC=OFF \
