@@ -22,6 +22,16 @@ need_build()
 }
 export -f need_build
 
+name_flavor()
+{
+    if [ "$flavor" ]; then
+        echo -n "$bush_name/$flavor"
+    else
+        echo -n "$bush_name"
+    fi
+}
+export -f name_flavor
+
 exec_status()
 {
     trap DEBUG
@@ -33,7 +43,7 @@ exec_status()
     fi
 }
 
-export PS1="\$(exec_status)\$(need_build){$bush_name} ${PS1}"
+export PS1="\$(exec_status)\$(need_build){\$(name_flavor)} ${PS1}"
 export CDPATH=".:~"
 
 alias reconf="source ~/.bashrc"

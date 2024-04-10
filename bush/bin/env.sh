@@ -32,11 +32,21 @@ export CCACHE_MAXSIZE=15G
 
 ulimit -Sc 0
 
+add_path()
+{
+    [[ ":$PATH:" == *":${1}:"* ]] ||
+        PATH="${1}:${PATH}"
+}
+
 # innodb_ruby setup
-PATH="${proj_dir}/innodb_ruby/bin:${PATH}"
+add_path "${proj_dir}/innodb_ruby/bin"
 export RUBYLIB=${proj_dir}/innodb_ruby/lib
 alias ispace=innodb_space
 alias ilog=innodb_log
+
+# RQG setup
+export RQG_HOME="${proj_dir}/randgen"
+add_path "$RQG_HOME"
 
 mtr_opts="--tail-lines=0"
 opt_ddl="--mysqld=--debug=d,ddl_log"
@@ -435,6 +445,8 @@ export debug_opts="-g -O0 -DEXTRA_DEBUG -Werror=return-type -Wno-error=unused-va
 export debug_opts_clang="-gdwarf-4 -fno-limit-debug-info -Wno-error=macro-redefined -Werror=overloaded-virtual -Wno-deprecated-register -Wno-inconsistent-missing-override"
 # FIXME: detect lld version and add -Wl,--threads=24
 export linker_opts_clang="-fuse-ld=lld"
+export common_opts="-Wa,-mbranches-within-32B-boundaries"
+export common_opts_clang="-mbranches-within-32B-boundaries"
 
 conf()
 {(
@@ -507,6 +519,9 @@ prepare()
         -DWITH_WSREP:BOOL=OFF \
         -DWITH_MARIABACKUP:BOOL=OFF \
         -DWITH_SAFEMALLOC:BOOL=OFF \
+        -DRUN_ABI_CHECK=0 \
+        `# some older versions fail bootstrap on MD5 without SSL bundled` \
+        -DWITH_SSL=bundled \
         $flavor_opts \
         $cclauncher \
         $plugins \
@@ -736,14 +751,19 @@ rel_opts()
 {
     flavor rel
 (
+    export CMAKE_C_FLAGS="${CMAKE_C_FLAGS:+$CMAKE_C_FLAGS }-fomit-frame-pointer"
+    export CMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS:+$CMAKE_CXX_FLAGS }-fomit-frame-pointer"
+    export CMAKE_LDFLAGS="${CMAKE_LDFLAGS:+$CMAKE_LDFLAGS }${linker_opts_clang} ${debug_opts_clang}"
+
     cmd="$1"
     shift
     "$cmd" \
         "$@" \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DBUILD_CONFIG:STRING=mysql_release \
-        -DWITH_JEMALLOC:BOOL=ON \
-        -DCMAKE_CXX_FLAGS_RELEASE:STRING="-g" \
-        -DCMAKE_C_FLAGS_RELEASE:STRING="-g" \
+        -DWITH_JEMALLOC:BOOL=OFF \
+        -DCOMMON_C_FLAGS:STRING="${CMAKE_C_FLAGS}" \
+        -DCOMMON_CXX_FLAGS:STRING="${CMAKE_CXX_FLAGS}" \
         -DSECURITY_HARDENED:BOOL=FALSE
 )}
 export -f rel_opts
@@ -753,9 +773,9 @@ clang_opts()
 {(
     cmd="$1"
     # FIXME: detect clang version and add -fdebug-macro
-    export CMAKE_C_FLAGS="${CMAKE_C_FLAGS:+$CMAKE_C_FLAGS }${debug_opts_clang}"
-    export CMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS:+$CMAKE_CXX_FLAGS }${debug_opts_clang}"
-    export CMAKE_LDFLAGS="${CMAKE_LDFLAGS:+$CMAKE_LDFLAGS }${linker_opts_clang} ${debug_opts_clang}"
+    export CMAKE_C_FLAGS="${CMAKE_C_FLAGS:+$CMAKE_C_FLAGS }${debug_opts_clang:+$debug_opts_clang }${common_opts_clang:+$common_opts_clang }"
+    export CMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS:+$CMAKE_CXX_FLAGS }${debug_opts_clang:+$debug_opts_clang }${common_opts_clang:+$common_opts_clang }"
+    export CMAKE_LDFLAGS="${CMAKE_LDFLAGS:+$CMAKE_LDFLAGS }${linker_opts_clang:+$linker_opts_clang }${debug_opts_clang:+$debug_opts_clang }"
     #libc_home=/usr/lib/llvm-14
     #export CFLAGS="${CFLAGS:+ $CFLAGS}-fdebug-macro -stdlib=libc++ -I${libc_home}/include/c++/v1 -L${libc_home}/lib -Wl,-rpath,${libc_home}/lib"
     shift
@@ -763,7 +783,11 @@ clang_opts()
         "$@" \
         -DCMAKE_C_COMPILER=clang \
         -DCMAKE_CXX_COMPILER=clang++ \
+        -DCOMMON_C_FLAGS:STRING="${CMAKE_C_FLAGS}" \
+        -DCOMMON_CXX_FLAGS:STRING="${CMAKE_CXX_FLAGS}" \
         -D_CMAKE_TOOLCHAIN_PREFIX=llvm-
+        # TODO: for GCC
+        # -Wa,-mbranches-within-32B-boundaries
 )}
 export -f clang_opts
 
@@ -940,7 +964,8 @@ flavor()
     export build="${bush_dir}/build"${flavor+.${flavor}}
     export opt="${build}/opt"
     PATH=$(echo $PATH|sed -Ee 's|'${bush_dir}'[^:]*:?||g')
-    PATH="${opt}/bin:${proj_dir}/test:${opt}/scripts:${opt}/mysql-test:${opt}/sql-bench:${bush_dir}:${bush_dir}/bin:${bush_dir}/issues:${PATH}"
+    PATH="${opt}/bin:${opt}/scripts:${opt}/mysql-test:${opt}/sql-bench:${bush_dir}:${bush_dir}/bin:${bush_dir}/issues:${PATH}"
+    add_path ${proj_dir}/test
     CDPATH=$(echo $CDPATH|sed -Ee 's|'${bush_dir}'[^:]*:?||g')
     CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src}/storage/innobase:${src}/mysql-test/suite:${src}/mysql-test:${src}/extra:${build}/mysql-test:${HOME}:${HOME}/tmp"
 }
