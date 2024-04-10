@@ -972,7 +972,7 @@ flavor()
 
 flavor > /dev/null
 
-alias dflavor="flavor default"
+alias default="flavor default"
 
 upatch()
 {

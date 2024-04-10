@@ -34,7 +34,7 @@ checkout="10.4.20samurai"
 submodules="extra/wolfssl/wolfssl libmariadb"
 force_cleanup=false
 unset verbose_on
-unset verbose_off
+unset verbose_offdef
 unset verbose
 unset CDPATH
 verbose_echo="true"
@@ -173,6 +173,7 @@ make_links()
 
     link "$homepath" bin
     link "${homepath}/bin" env.sh
+    link "${homepath}/bin" .bashrc
     unset force_link
     echo "Made links"
 }
