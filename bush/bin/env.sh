@@ -446,7 +446,7 @@ export debug_opts_clang="-gdwarf-4 -fno-limit-debug-info -Wno-error=macro-redefi
 # FIXME: detect lld version and add -Wl,--threads=24
 export linker_opts_clang="-fuse-ld=lld"
 export common_opts="-Wa,-mbranches-within-32B-boundaries"
-export common_opts_clang="-mbranches-within-32B-boundaries"
+# export common_opts_clang="-mbranches-within-32B-boundaries"
 
 conf()
 {(
@@ -489,6 +489,11 @@ prepare()
         compiler_flags="$(cat ~/compiler_flags)"
         compiler_flags="$(echo $compiler_flags)"
     fi
+    if [ -f $build/compiler_flags ]
+    then
+        compiler_flags="${compiler_flags} $(cat $build/compiler_flags)"
+        compiler_flags="$(echo $compiler_flags)"
+    fi
     unset profile_flags
     if [ -f ~/profile_flags ]
     then
@@ -505,8 +510,10 @@ prepare()
     cmake-ln -Wno-dev \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Debug \
-        -DCMAKE_CXX_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $profile_flags $CMAKE_C_FLAGS $CMAKE_CXX_FLAGS" \
-        -DCMAKE_C_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $profile_flags $CMAKE_C_FLAGS" \
+        -DCMAKE_CXX_FLAGS_DEBUG:STRING="$debug_opts $profile_flags" \
+        -DCMAKE_C_FLAGS_DEBUG:STRING="$debug_opts $profile_flags" \
+        -DCMAKE_CXX_FLAGS:STRING="$compiler_flags $profile_flags $CMAKE_C_FLAGS $CMAKE_CXX_FLAGS" \
+        -DCMAKE_C_FLAGS:STRING="$compiler_flags $profile_flags $CMAKE_C_FLAGS" \
         -DCMAKE_EXE_LINKER_FLAGS:STRING="$profile_flags $CMAKE_LDFLAGS" \
         -DCMAKE_MODULE_LINKER_FLAGS:STRING="$profile_flags $CMAKE_LDFLAGS" \
         -DCMAKE_SHARED_LINKER_FLAGS:STRING="$profile_flags $CMAKE_LDFLAGS" \
@@ -521,7 +528,7 @@ prepare()
         -DWITH_SAFEMALLOC:BOOL=OFF \
         -DRUN_ABI_CHECK=0 \
         `# some older versions fail bootstrap on MD5 without SSL bundled` \
-        -DWITH_SSL=bundled \
+        -DWITH_SSL=system \
         $flavor_opts \
         $cclauncher \
         $plugins \
@@ -750,11 +757,11 @@ export -f prepare_strict
 
 rel_opts()
 {
-    flavor rel
+    [ "$(flavor)" = default ] &&
+        flavor rel
 (
     export CMAKE_C_FLAGS="${CMAKE_C_FLAGS:+$CMAKE_C_FLAGS }-fomit-frame-pointer"
     export CMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS:+$CMAKE_CXX_FLAGS }-fomit-frame-pointer"
-    export CMAKE_LDFLAGS="${CMAKE_LDFLAGS:+$CMAKE_LDFLAGS }${linker_opts_clang} ${debug_opts_clang}"
 
     cmd="$1"
     shift
