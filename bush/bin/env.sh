@@ -420,7 +420,7 @@ export -f initdb
 
 attach()
 {
-    gdb-attach ${opt}/bin/mysqld
+    gdb-attach ${build}/mariadbd
 }
 
 breaks()
@@ -510,10 +510,12 @@ prepare()
     cmake-ln -Wno-dev \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
         -DCMAKE_BUILD_TYPE:STRING=Debug \
-        -DCMAKE_CXX_FLAGS_DEBUG:STRING="$debug_opts $profile_flags" \
-        -DCMAKE_C_FLAGS_DEBUG:STRING="$debug_opts $profile_flags" \
+        -DCMAKE_CXX_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $profile_flags" \
+        -DCMAKE_C_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $profile_flags" \
+        -DCMAKE_ASM_FLAGS_DEBUG:STRING="$debug_opts $compiler_flags $profile_flags" \
         -DCMAKE_CXX_FLAGS:STRING="$compiler_flags $profile_flags $CMAKE_C_FLAGS $CMAKE_CXX_FLAGS" \
         -DCMAKE_C_FLAGS:STRING="$compiler_flags $profile_flags $CMAKE_C_FLAGS" \
+        -DCMAKE_ASM_FLAGS:STRING="$compiler_flags $profile_flags" \
         -DCMAKE_EXE_LINKER_FLAGS:STRING="$profile_flags $CMAKE_LDFLAGS" \
         -DCMAKE_MODULE_LINKER_FLAGS:STRING="$profile_flags $CMAKE_LDFLAGS" \
         -DCMAKE_SHARED_LINKER_FLAGS:STRING="$profile_flags $CMAKE_LDFLAGS" \
@@ -586,6 +588,7 @@ prepare_sn()
         -DCMAKE_BUILD_TYPE:STRING=Release \
         -DCMAKE_CXX_FLAGS:STRING="-g -O3 $compiler_flags $profile_flags $CMAKE_C_FLAGS $CMAKE_CXX_FLAGS" \
         -DCMAKE_C_FLAGS:STRING="-g -O3 $compiler_flags $profile_flags $CMAKE_C_FLAGS" \
+        -DCMAKE_ASM_FLAGS:STRING="-g -O3 $compiler_flags $profile_flags" \
         -DCMAKE_EXE_LINKER_FLAGS:STRING="-z relro -z now $profile_flags $CMAKE_LDFLAGS" \
         -DCMAKE_MODULE_LINKER_FLAGS:STRING="-z relro -z now $profile_flags $CMAKE_LDFLAGS" \
         -DCMAKE_SHARED_LINKER_FLAGS:STRING="-z relro -z now $profile_flags $CMAKE_LDFLAGS" \
@@ -717,6 +720,7 @@ prepare_snow()
         -DBUILD_CONFIG=snow \
         -DCMAKE_CXX_FLAGS:STRING="$compiler_flags $profile_flags $CMAKE_C_FLAGS $CMAKE_CXX_FLAGS" \
         -DCMAKE_C_FLAGS:STRING="$compiler_flags $profile_flags $CMAKE_C_FLAGS" \
+        -DCMAKE_ASM_FLAGS_DEBUG:STRING="$compiler_flags $profile_flags" \
         -DCMAKE_EXE_LINKER_FLAGS:STRING="$profile_flags $CMAKE_LDFLAGS" \
         -DCMAKE_MODULE_LINKER_FLAGS:STRING="$profile_flags $CMAKE_LDFLAGS" \
         -DCMAKE_SHARED_LINKER_FLAGS:STRING="$profile_flags $CMAKE_LDFLAGS" \
@@ -1179,7 +1183,7 @@ record_kills()
 
 replay()
 {
-    rr replay "$@" -- -q -ex continue -ex reverse-continue
+    rr replay "$@" -- -q -ex continue -ex "tb open64" -ex reverse-continue
 }
 
 dmp()
