@@ -445,8 +445,10 @@ export debug_opts="-g -O0 -DEXTRA_DEBUG -Werror=return-type -Wno-error=unused-va
 export debug_opts_clang="-gdwarf-4 -fno-limit-debug-info -Wno-error=macro-redefined -Werror=overloaded-virtual -Wno-deprecated-register -Wno-inconsistent-missing-override"
 # FIXME: detect lld version and add -Wl,--threads=24
 export linker_opts_clang="-fuse-ld=lld"
-export common_opts="-Wa,-mbranches-within-32B-boundaries"
-# export common_opts_clang="-mbranches-within-32B-boundaries"
+# FIXME: implement common_opts and common_opts_gcc
+export common_opts="-Wno-deprecated-declarations"
+export common_opts_gcc="-Wa,-mbranches-within-32B-boundaries"
+export common_opts_clang="-mbranches-within-32B-boundaries -Wno-unused-command-line-argument -Wno-deprecated-non-prototype"
 
 conf()
 {(
@@ -717,7 +719,7 @@ prepare_snow()
 
     cmake-ln -Wno-dev \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
-        -DBUILD_CONFIG=snow \
+        -DBUILD_CONFIG=shogun \
         -DCMAKE_CXX_FLAGS:STRING="$compiler_flags $profile_flags $CMAKE_C_FLAGS $CMAKE_CXX_FLAGS" \
         -DCMAKE_C_FLAGS:STRING="$compiler_flags $profile_flags $CMAKE_C_FLAGS" \
         -DCMAKE_ASM_FLAGS_DEBUG:STRING="$compiler_flags $profile_flags" \
