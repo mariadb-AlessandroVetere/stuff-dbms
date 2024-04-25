@@ -530,7 +530,7 @@ prepare()
         -DWITH_SAFEMALLOC:BOOL=OFF \
         -DRUN_ABI_CHECK=0 \
         `# some older versions fail bootstrap on MD5 without SSL bundled` \
-        -DWITH_SSL=system \
+        -DWITH_SSL=bundled \
         $flavor_opts \
         $cclauncher \
         $plugins \
@@ -973,6 +973,8 @@ flavor()
             echo default
         fi
     fi
+    [ -d "$build" ] &&
+        rmdir --ignore-fail "$build"
     export build="${bush_dir}/build"${flavor+.${flavor}}
     export opt="${build}/opt"
     PATH=$(echo $PATH|sed -Ee 's|'${bush_dir}'[^:]*:?||g')
@@ -980,11 +982,16 @@ flavor()
     add_path ${proj_dir}/test
     CDPATH=$(echo $CDPATH|sed -Ee 's|'${bush_dir}'[^:]*:?||g')
     CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src}/storage/innobase:${src}/mysql-test/suite:${src}/mysql-test:${src}/extra:${build}/mysql-test:${HOME}:${HOME}/tmp"
+    mkdir -p "$build"
 }
 
 flavor > /dev/null
 
 alias default="flavor default"
+alias cdb='cd "$build"'
+alias cds='cd "$src"'
+alias cdt='cd "~/tmp"'
+alias cdl='cd "$build/mysql-test/var/log"'
 
 upatch()
 {
