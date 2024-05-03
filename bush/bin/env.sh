@@ -979,11 +979,12 @@ flavor()
         rmdir --ignore-fail "$build"
     export build="${bush_dir}/build"${flavor+.${flavor}}
     export opt="${build}/opt"
+    export var="${build}/mysql-test/var"
     PATH=$(echo $PATH|sed -Ee 's|'${bush_dir}'[^:]*:?||g')
     PATH="${opt}/bin:${opt}/scripts:${opt}/mysql-test:${opt}/sql-bench:${bush_dir}:${bush_dir}/bin:${bush_dir}/issues:${PATH}"
     add_path ${proj_dir}/test
     CDPATH=$(echo $CDPATH|sed -Ee 's|'${bush_dir}'[^:]*:?||g')
-    CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src}/storage/innobase:${src}/mysql-test/suite:${src}/mysql-test:${src}/extra:${build}/mysql-test:${HOME}:${HOME}/tmp"
+    CDPATH="${CDPATH}:${src}:${src}/mysql-test/suite/versioning:${src}/storage:${src}/storage/innobase:${src}/mysql-test/suite:${src}/mysql-test:${src}/extra:${var}:${HOME}:${HOME}/tmp"
     mkdir -p "$build"
 }
 
