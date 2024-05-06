@@ -717,9 +717,18 @@ prepare_snow()
     # This influences the build
     #    -DSECURITY_HARDENED:BOOL=ON \
 
+    if [ -f "${src}/cmake/build_configurations/shogun.cmake" ]
+    then
+        build_config=shogun
+    else
+        build_config=mysql_release
+    fi
+
+    echo "Build config: $build_config"
+
     cmake-ln -Wno-dev \
         -DCMAKE_INSTALL_PREFIX:STRING=${opt} \
-        -DBUILD_CONFIG=shogun \
+        -DBUILD_CONFIG=$build_config \
         -DCMAKE_CXX_FLAGS:STRING="$compiler_flags $profile_flags $CMAKE_C_FLAGS $CMAKE_CXX_FLAGS" \
         -DCMAKE_C_FLAGS:STRING="$compiler_flags $profile_flags $CMAKE_C_FLAGS" \
         -DCMAKE_ASM_FLAGS_DEBUG:STRING="$compiler_flags $profile_flags" \
