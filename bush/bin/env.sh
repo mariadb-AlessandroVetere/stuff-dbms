@@ -32,6 +32,31 @@ export CCACHE_MAXSIZE=15G
 
 ulimit -Sc 0
 
+# Detect mysql or mariadb
+detection_file="${src}/INSTALL-SOURCE"
+export product=mariadb
+export opt_debug_gdb=--debug-gdb
+export opt_silent=--silent-startup
+mtr_opts="--tail-lines=0"
+mtrg_opts="--mysqld=--use-stat-tables=never"
+opt_ddl="--mysqld=--debug=d,ddl_log"
+opt_vers="--mysqld=--debug=d,sysvers_force --mysqld=--system_versioning_alter_history=keep"
+opt_fts="--mysqld=--innodb_ft_sort_pll_degree=1"
+
+if ! grep -iq mariadb $detection_file &&
+    grep -iq mysql $detection_file
+then
+    product=mysql
+    opt_debug_gdb=--gdb
+    opt_silent=
+    mtr_opts=
+    mtrg_opts=
+    opt_ddl=
+    opt_vers=
+    export PERL5OPT=${PERL5OPT:+$PERL5OPT }-I"${src}/mysql-test"
+fi
+
+
 add_path()
 {
     [[ ":$PATH:" == *":${1}:"* ]] ||
@@ -47,11 +72,6 @@ alias ilog=innodb_log
 # RQG setup
 export RQG_HOME="${proj_dir}/randgen"
 add_path "$RQG_HOME"
-
-mtr_opts="--tail-lines=0"
-opt_ddl="--mysqld=--debug=d,ddl_log"
-opt_vers="--mysqld=--debug=d,sysvers_force --mysqld=--system_versioning_alter_history=keep"
-opt_fts="--mysqld=--innodb_ft_sort_pll_degree=1"
 
 mtr()
 {(
@@ -94,13 +114,28 @@ mtr()
         exclude_opts="--skip-test-list=${HOME}/tests_exclude"
     [ -f "${log_dir}/mtr.log" ] &&
         mv "${log_dir}/mtr.log" "${log_dir}/"$(date '+mtr_%Y%m%d_%H%M%S.log')
+    unset opt_mysqld_silent
+    [ -n "$opt_silent" ] &&
+        opt_mysqld_silent="--mysqld=$opt_silent"
+    unset opt_suite
+    if [ $product = mariadb ]
+    then
+        opt_suite=--suite="main-,archive-,binlog-,csv-,federated-,funcs_1-,funcs_2-,gcol-,handler-,heap-,innodb-,innodb_fts-,innodb_gis-,json-,maria-,mariabackup-,multi_source-,optimizer_unfixed_bugs-,parts-,perfschema-,plugins-,roles-,rpl-,sys_vars-,unit-,vcol-,versioning-,period-"
+    fi
+    unset opt_sql_mode
+    if [ $product = mysql ]
+    then
+        opt_sql_mode=--mysqld=--sql_mode=
+    fi
     # Using --mem makes var/ path always different!
     exec $mtr_script \
         --force \
         --max-test-fail=0 \
         --suite-timeout=1440 \
-        --mysqld=--silent-startup \
-        --suite="main-,archive-,binlog-,csv-,federated-,funcs_1-,funcs_2-,gcol-,handler-,heap-,innodb-,innodb_fts-,innodb_gis-,json-,maria-,mariabackup-,multi_source-,optimizer_unfixed_bugs-,parts-,perfschema-,plugins-,roles-,rpl-,sys_vars-,unit-,vcol-,versioning-,period-" \
+        --retry-failure=1 \
+        $opt_mysqld_silent \
+        $opt_sql_mode \
+        $opt_suite \
         ${mtr_opts} \
         ${exclude_opts} \
         "$@" 2>&1 | tee -a "${log_dir}/mtr.log"
@@ -120,7 +155,7 @@ alias mtrzz="mtrz --debug-sync-timeout=2"
 alias mtrm="mtrz --suite=main"
 alias mtrv="mtrz --suite=versioning"
 alias mtrvv="mtrz --suite=period"
-alias mtrg="mtr --manual-gdb --mysqld=--use-stat-tables=never"
+alias mtrg="mtr --manual-gdb $mtrg_opts"
 alias mtrvvg="mtrg --suite=period"
 alias mtrvg="mtrg --suite=versioning"
 alias mtrp="mtrz --suite=parts"
@@ -238,7 +273,7 @@ run()
         cd "${bush_dir}"
         defaults=./mysqld.cnf
     fi
-    exec "${opt}/bin/mysqld" "--defaults-file=$defaults" --debug-gdb --silent-startup "$@"
+    exec "${opt}/bin/mysqld" "--defaults-file=$defaults" $opt_debug_gdb $opt_silent "$@"
 )}
 export -f run
 
@@ -256,7 +291,7 @@ runval()
         --leak-check=no \
         --track-origins=yes \
         --log-file=valgrind-badmem.log \
-        "${opt}/bin/mysqld" "--defaults-file=$defaults" --debug-gdb "$@"
+        "${opt}/bin/mysqld" "--defaults-file=$defaults" $opt_debug_gdb "$@"
 )}
 export -f run
 
@@ -277,7 +312,7 @@ rund()
         cd "${bush_dir}"
         defaults=./mysqld.cnf
     fi
-    exec gdb -q $opt_run --args "${opt}/bin/mysqld" "--defaults-file=$defaults" --plugin-maturity=experimental --plugin-load=test_versioning --debug-gdb "$@"
+    exec gdb -q $opt_run --args "${opt}/bin/mysqld" "--defaults-file=$defaults" --plugin-maturity=experimental --plugin-load=test_versioning $opt_debug_gdb "$@"
 )}
 export -f rund
 
@@ -286,7 +321,7 @@ runt()
     cd "${src}/mysql-test"
     suffix=${1:-1}
     shift
-    exec gdb -q --args "${opt}/bin/mysqld" --defaults-group-suffix=.$suffix --defaults-file=${build}/mysql-test/var/my.cnf --log-output=file --gdb --core-file --loose-debug-sync-timeout=300 --debug --debug-gdb "$@"
+    exec gdb -q --args "${opt}/bin/mysqld" --defaults-group-suffix=.$suffix --defaults-file=${build}/mysql-test/var/my.cnf --log-output=file --gdb --core-file --loose-debug-sync-timeout=300 --debug $opt_debug_gdb "$@"
 )}
 export -f runt
 
@@ -307,7 +342,7 @@ runrr()
         cd "${bush_dir}"
         defaults=./mysqld.cnf
     fi
-    exec rr record "${opt}/bin/mysqld" "--defaults-file=$defaults" --plugin-maturity=experimental --plugin-load=test_versioning --debug-gdb --silent-startup "$@"
+    exec rr record "${opt}/bin/mysqld" "--defaults-file=$defaults" --plugin-maturity=experimental --plugin-load=test_versioning $opt_debug_gdb $opt_silent "$@"
 )}
 export -f runrr
 
@@ -412,11 +447,19 @@ initdb()
         echo "${data} already exists!" >&2
         exit 100
     fi
-    mkdir -p "${data}"
-    ln -s "${bush_dir}/run" "${data}/run"
-    mysql_install_db --basedir="${opt}" --datadir="${data}" --defaults-file="${defaults}" --auth-root-authentication-method=normal
+    if [ $product = mariadb ]
+    then
+        mkdir -p "${data}"
+        ln -s "${bush_dir}/run" "${data}/run"
+        mysql_install_db --basedir="${opt}" --datadir="${data}" --defaults-file="${defaults}" --auth-root-authentication-method=normal
+    else
+        mysqld --initialize-insecure --basedir="${opt}" --datadir="${data}"
+        ln -s "${bush_dir}/run" "${data}/run"
+    fi
 )}
 export -f initdb
+
+alias rmdb='rm -rf "$bush_dir/data"'
 
 attach()
 {
