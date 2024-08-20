@@ -34,6 +34,7 @@ ulimit -Sc 0
 
 # Detect mysql or mariadb
 detection_file="${src}/INSTALL-SOURCE"
+detection_file2="${src}/MYSQL_VERSION"
 export product=mariadb
 export opt_debug_gdb=--debug-gdb
 export opt_silent=--silent-startup
@@ -43,8 +44,9 @@ opt_ddl="--mysqld=--debug=d,ddl_log"
 opt_vers="--mysqld=--debug=d,sysvers_force --mysqld=--system_versioning_alter_history=keep"
 opt_fts="--mysqld=--innodb_ft_sort_pll_degree=1"
 
-if ! grep -iq mariadb $detection_file &&
-    grep -iq mysql $detection_file
+if [ -f $detection_file2 ] || (
+    ! grep -iq mariadb $detection_file &&
+    grep -iq mysql $detection_file)
 then
     product=mysql
     opt_debug_gdb=--gdb
@@ -55,6 +57,14 @@ then
     opt_vers=
     export PERL5OPT=${PERL5OPT:+$PERL5OPT }-I"${src}/mysql-test"
 fi
+
+for_mariadb()
+{
+    [ $product = mariadb ] &&
+        echo "$1" ||
+        echo "$2"
+}
+export -f for_mariadb
 
 
 add_path()
@@ -125,7 +135,9 @@ mtr()
     unset opt_sql_mode
     if [ $product = mysql ]
     then
-        opt_sql_mode=--mysqld=--sql_mode=
+        opt_sql_mode="--mysqld=--sql_mode= --mysqld=--innodb_use_native_aio="
+        # Use --mysqld=--innodb_use_native_aio=0
+        false
     fi
     # Using --mem makes var/ path always different!
     exec $mtr_script \
@@ -167,6 +179,24 @@ alias makez="make -j$(nproc)"
 alias mtrpd="mtr PERLDB"
 alias mtrpg="mtr GDB"
 alias mtrpr="mtr RR"
+
+for a in $(alias -p|grep "^alias mtr"|while read a b; do b=${b%%=*}; echo $b; done)
+do
+    eval alias m$a="\"makez && $a\""
+done
+
+commit-tests()
+{
+    local t=${1:-HEAD}
+    shift
+    git stat $t| fgrep .result |
+    while read a b
+    do
+        t=${a%%.result}
+        t=${t##*/}
+        echo $t
+    done
+}
 
 br()
 {(
@@ -529,16 +559,13 @@ prepare()
         done < ~/plugin_exclude
     fi
     unset compiler_flags
-    if [ -f ~/compiler_flags ]
-    then
+    [ -f ~/compiler_flags ] &&
         compiler_flags="$(cat ~/compiler_flags)"
-        compiler_flags="$(echo $compiler_flags)"
-    fi
-    if [ -f $build/compiler_flags ]
-    then
+    [ -f $build/compiler_flags ] &&
         compiler_flags="${compiler_flags} $(cat $build/compiler_flags)"
-        compiler_flags="$(echo $compiler_flags)"
-    fi
+    [ $product = mysql ] &&
+        compiler_flags="${compiler_flags} -w -Wno-reserved-user-defined-literal -Wno-deprecated-copy-with-user-provided-copy -Wno-register -Wno-enum-constexpr-conversion"
+    compiler_flags="$(echo $compiler_flags)"
     unset profile_flags
     if [ -f ~/profile_flags ]
     then
@@ -546,10 +573,10 @@ prepare()
         profile_flags="$(echo $profile_flags)"
     fi
     cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER= -DCMAKE_C_COMPILER_LAUNCHER="
-    if [ -x $(which ccache) ]
-    then
+    [ -x $(which ccache) ] &&
         cclauncher="-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache"
-    fi
+    [ $product = mysql ] &&
+        cclauncher="${cclauncher} -DWITH_SASL=no -DWITH_FIDO=none -DWITH_BUNDLED_LIBEVENT:BOOL=OFF -D WITH_BUNDLED_MEMCACHED:BOOL=OFF -DWITH_EMBEDDED_SERVER:BOOL=OFF -DWITH_EMBEDDED_SHARED_LIBRARY:BOOL=OFF -DWITH_HYPERGRAPH_OPTIMIZER:BOOL=OFF -DWITH_NDBAPI_EXAMPLES:BOOL=OFF -DWITH_NDBCLUSTER_STORAGE_ENGINE:BOOL=OFF -DWITH_NDBMTD:BOOL=OFF -DWITH_NDB_BINLOG:BOOL=OFF -DWITH_NDB_NODEJS:BOOL=OFF -DWITH_NDB_TEST:BOOL=OFF -DWITH_ROUTER:BOOL=OFF"
     # TODO: add DISABLE_PSI_FILE
     eval flavor_opts=\$${flavor}_opts
     cmake-ln -Wno-dev \
@@ -575,7 +602,7 @@ prepare()
         -DWITH_SAFEMALLOC:BOOL=OFF \
         -DRUN_ABI_CHECK=0 \
         `# some older versions fail bootstrap on MD5 without SSL bundled` \
-        -DWITH_SSL=bundled \
+        -DWITH_SSL=$(for_mariadb bundled system) \
         $flavor_opts \
         $cclauncher \
         $plugins \

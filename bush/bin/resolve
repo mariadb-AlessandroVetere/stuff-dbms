@@ -1,9 +1,10 @@
 #!/bin/bash
 opt=$1
-
+curpath=`pwd`
+cd $src
 while true
 do
-    src=(`git diff --name-only .|uniq`)
+    src=(`git diff --name-only $curpath|uniq`)
     [ -n "${src[0]}" ] ||
         break
 
