@@ -564,7 +564,7 @@ prepare()
     [ -f $build/compiler_flags ] &&
         compiler_flags="${compiler_flags} $(cat $build/compiler_flags)"
     [ $product = mysql ] &&
-        compiler_flags="${compiler_flags} -w -Wno-reserved-user-defined-literal -Wno-deprecated-copy-with-user-provided-copy -Wno-register -Wno-enum-constexpr-conversion"
+        compiler_flags="${compiler_flags} -w -Wno-c++11-narrowing -Wno-reserved-user-defined-literal -Wno-deprecated-copy-with-user-provided-copy -Wno-register -Wno-enum-constexpr-conversion"
     compiler_flags="$(echo $compiler_flags)"
     unset profile_flags
     if [ -f ~/profile_flags ]
