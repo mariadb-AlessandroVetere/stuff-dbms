@@ -14,6 +14,9 @@ else
     fi
 fi
 
+[ -f ~/.bushrc ] &&
+    source ~/.bushrc
+
 unset which
 
 export bush_dir=$(dirname $script)
@@ -282,6 +285,8 @@ backupd()
         --target-dir=~/tmp/backup "$@"
 )}
 
+# TODO: check on multi-server test (f.ex. spider.versioning)
+# Auto-find correct sock if it is only one
 mysqlt()
 {(
     mysql_client=${mysql_client:-$(which mysql)}
@@ -289,7 +294,7 @@ mysqlt()
     shift
     [ -x "`which most`" ] &&
         export PAGER=most
-    "$mysql_client" -S "${build}/mysql-test/var/tmp/mysqld.1.sock" -u root "$db" "$@"
+    "$mysql_client" -S "${build}/mysql-test/var/tmp/mysqld.1.1.sock" -u root "$db" "$@"
 )}
 
 
@@ -545,6 +550,179 @@ cmake()
     eval $(which cmake-ln) $opts \"\$@\" \"${src}\"
 )}
 
+### New prepare development BEGIN
+
+die()
+{
+    [ -n "$1" ] && echo "$1" >&2;
+    if [[ $_ != $0 ]]
+    then
+        while true; do kill -SIGINT -$$; sleep 700d; done
+    else
+        exit 1
+    fi
+}
+
+opt_matches()
+{
+    # From -DSECURITY_HARDENED:BOOL=FALSE get SECURITY_HARDENED
+    local match_D_opt='^[[:space:]]*-D[[:space:]]*([^:=]+)'
+    if [[ "$1" =~ $match_D_opt ]]
+    then
+        local rematch=("${BASH_REMATCH[@]}")
+        if [[ "$2" =~ $match_D_opt ]]
+        then
+            [ "${rematch[1]}" = "${BASH_REMATCH[1]}" ]
+            return
+        fi
+    fi
+    [ "$1" = "$2" ]
+}
+
+prepare_add()
+{
+    local name=$1
+    local opt=$2
+    [ -z "$name" ] &&
+        die "Config name required!"
+    [ -z "$opt" ] &&
+        die "CMake option required!"
+    declare -gA cmake_config
+    local conf
+    for f in ${cmake_config[$name]}
+    do
+        if [ -n "$opt" ] && opt_matches $f $opt
+        then
+            conf="${conf:+$conf }$opt"
+            unset opt
+        else
+            conf="${conf:+$conf }$f"
+        fi
+    done
+    cmake_config[$name]="${conf:+$conf }$opt"
+}
+
+show_config()
+{
+    local name=$1
+    [ -z "$name" ] &&
+        die "Config name required!"
+    for f in ${cmake_config[$name]}
+    do
+        echo "$f "
+    done
+}
+
+prepare_config()
+{
+    local name=$1
+    [ -z "$name" ] &&
+        die "Config name required!"
+    unset cmake_config[$name]
+    while read -r
+    do
+        local s=${REPLY% \\}
+        s=${s%${s##*[![:space:]]}} # trim trailing space
+        s=${s#${s%%[![:space:]]*}} # trim beginning space
+        prepare_add $name $s
+    done
+}
+
+test_prepare_config()
+{
+    prepare_config debug <<"EOF"
+        -DSECURITY_HARDENED:BOOL=FALSE \
+        -DMYSQL_MAINTAINER_MODE:STRING=OFF \
+        -DUPDATE_SUBMODULES:BOOL=OFF \
+        -DPLUGIN_METADATA_LOCK_INFO:STRING=STATIC \
+        -DWITH_UNIT_TESTS:BOOL=OFF \
+        -DWITH_CSV_STORAGE_ENGINE:BOOL=OFF \
+        -DWITH_WSREP:BOOL=OFF \
+        -DWITH_MARIABACKUP:BOOL=OFF \
+        -DWITH_SAFEMALLOC:BOOL=OFF \
+        -DWITHOUT_ABI_CHECK:BOOL=OFF
+EOF
+    show_config debug
+    return
+    prepare_config sn <<"EOF"
+        -DSECURITY_HARDENED:BOOL=OFF \
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+        -DDISABLE_SHARED:BOOL=OFF \
+        -DMYSQL_MAINTAINER_MODE:STRING=NO \
+        -DCONC_WITH_DYNCOL=NO \
+        -DCONC_WITH_EXTERNAL_ZLIB=NO \
+        -DCONC_WITH_MYSQLCOMPAT=NO \
+        -DCONC_WITH_UNIT_TESTS=NO \
+        -DENABLED_PROFILING=NO \
+        -DENABLE_DTRACE=NO \
+        -DGSSAPI_FOUND=FALSE \
+        -DMAX_INDEXES=128 \
+        -DMUTEXTYPE=futex \
+        -DPLUGIN_ARCHIVE=NO \
+        -DPLUGIN_AUDIT_NULL=NO \
+        -DPLUGIN_AUTH_0X0100=NO \
+        -DPLUGIN_AUTH_ED25519=NO \
+        -DPLUGIN_AUTH_GSSAPI=NO \
+        -DPLUGIN_AUTH_PAM_V1=NO \
+        -DPLUGIN_AUTH_SOCKET=NO \
+        -DPLUGIN_AUTH_TEST_PLUGIN=NO \
+        -DPLUGIN_BLACKHOLE=NO \
+        -DPLUGIN_CRACKLIB_PASSWORD_CHECK=NO \
+        -DPLUGIN_DAEMON_EXAMPLE=NO \
+        -DPLUGIN_DEBUG_KEY_MANAGEMENT=NO \
+        -DPLUGIN_DIALOG_EXAMPLES=NO \
+        -DPLUGIN_DISKS=NO \
+        -DPLUGIN_EXAMPLE=NO \
+        -DPLUGIN_EXAMPLE_KEY_MANAGEMENT=NO \
+        -DPLUGIN_FEDERATED=NO \
+        -DPLUGIN_FEDERATEDX=NO \
+        -DPLUGIN_FEEDBACK=NO \
+        -DPLUGIN_FILE_KEY_MANAGEMENT=NO \
+        -DPLUGIN_FTEXAMPLE=NO \
+        -DPLUGIN_HANDLERSOCKET=NO \
+        -DPLUGIN_LOCALES=NO \
+        -DPLUGIN_METADATA_LOCK_INFO=NO \
+        -DPLUGIN_OQGRAPH=NO \
+        -DPLUGIN_PERFSCHEMA=NO \
+        -DPLUGIN_QA_AUTH_CLIENT=NO \
+        -DPLUGIN_QA_AUTH_INTERFACE=NO \
+        -DPLUGIN_QA_AUTH_SERVER=NO \
+        -DPLUGIN_QUERY_CACHE_INFO=NO \
+        -DPLUGIN_QUERY_RESPONSE_TIME=NO \
+        -DPLUGIN_SEMISYNC_MASTER=NO \
+        -DPLUGIN_SEMISYNC_SLAVE=NO \
+        -DPLUGIN_SEQUENCE=NO \
+        -DPLUGIN_SERVER_AUDIT=NO \
+        -DPLUGIN_SIMPLE_PASSWORD_CHECK=NO \
+        -DPLUGIN_SQL_ERRLOG=NO \
+        -DPLUGIN_TEST_SQL_DISCOVERY=NO \
+        -DPLUGIN_TEST_VERSIONING=NO \
+        -DPLUGIN_USER_VARIABLES=NO \
+        -DUPDATE_SUBMODULES=OFF \
+        -DUSE_ARIA_FOR_TMP_TABLES=OFF \
+        -DWITH_CSV_STORAGE_ENGINE=OFF \
+        -DWITH_DBUG_TRACE=OFF \
+        -DWITH_EXTRA_CHARSETS=none \
+        -DWITH_INNODB_AHI=OFF \
+        -DWITH_INNODB_BZIP2=OFF \
+        -DWITH_INNODB_LZ4=OFF \
+        -DWITH_INNODB_LZMA=OFF \
+        -DWITH_INNODB_LZO=OFF \
+        -DWITH_INNODB_ROOT_GUESS=OFF \
+        -DWITH_INNODB_SNAPPY=OFF \
+        -DWITH_MARIABACKUP=ON \
+        -DWITH_NUMA=OFF \
+        -DWITH_PCRE=bundled \
+        -DWITH_SAFEMALLOC=OFF \
+        -DWITH_SYSTEMD=no \
+        -DWITH_UNIT_TESTS=OFF \
+        -DWITH_WSREP:BOOL=OFF \
+        -DWITH_ZLIB=bundled \
+EOF
+}
+
+### New prepare development END
+
 prepare()
 {(
     mkdir -p "${build}"
@@ -600,7 +778,7 @@ prepare()
         -DWITH_WSREP:BOOL=OFF \
         -DWITH_MARIABACKUP:BOOL=OFF \
         -DWITH_SAFEMALLOC:BOOL=OFF \
-        -DRUN_ABI_CHECK=0 \
+        -DWITHOUT_ABI_CHECK:BOOL=OFF \
         `# some older versions fail bootstrap on MD5 without SSL bundled` \
         -DWITH_SSL=$(for_mariadb bundled system) \
         $flavor_opts \
@@ -1038,12 +1216,22 @@ flavor()
 {
     if [ "$1" ]
     then
-        sed -i -Ee '/^\s*flavor=/ d;' ~/.bashrc
+        if [ -f ~/.bushrc ]
+        then
+            sed -i -Ee '/^\s*flavor=/ d;' ~/.bushrc
+            [ ! -s ~/.bushrc ] &&
+                rm ~/.bushrc
+        fi
         if [ "$1" = default ]
         then
-            unset flavor
+            unset -v flavor
         else
-            sed -i -Ee '/^\s*source ~\/env.sh\s*$/i flavor='${1} ~/.bashrc
+            if [ -f ~/.bushrc ]
+            then
+                sed -i -Ee '1i flavor='${1} ~/.bushrc
+            else
+                echo "flavor=${1}" > ~/.bushrc
+            fi
             flavor="$1"
         fi
     else
