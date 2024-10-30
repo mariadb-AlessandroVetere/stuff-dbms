@@ -69,6 +69,23 @@ for_mariadb()
 }
 export -f for_mariadb
 
+is_rhel()
+{
+    [ -f /etc/redhat-release ] &&
+        return 0
+    return 1
+}
+export -f is_rhel
+
+if is_rhel
+then
+    function which
+    {
+        /usr/bin/which "$@" 2>/dev/null
+    }
+    export -f which
+    unalias which &> /dev/null || true
+fi
 
 add_path()
 {
