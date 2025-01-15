@@ -13,4 +13,5 @@ done | xargs git bisect skip
 git bisect new $b
 git bisect old $a
 
-git bisect run bisect-run.sh "$@"
+git bisect run bisect-run-simple.sh "$@"
+git bisect reset

@@ -150,7 +150,7 @@ mtr()
     unset opt_suite
     if [ $product = mariadb ]
     then
-        opt_suite=--suite="main-,archive-,binlog-,csv-,federated-,funcs_1-,funcs_2-,gcol-,handler-,heap-,innodb-,innodb_fts-,innodb_gis-,json-,maria-,mariabackup-,multi_source-,optimizer_unfixed_bugs-,parts-,perfschema-,plugins-,roles-,rpl-,sys_vars-,unit-,vcol-,versioning-,period-"
+        opt_suite=--suite="main-,archive-,binlog-,csv-,funcs_1-,funcs_2-,gcol-,handler-,heap-,innodb-,innodb_fts-,innodb_gis-,json-,maria-,mariabackup-,multi_source-,optimizer_unfixed_bugs-,parts-,perfschema-,plugins-,roles-,rpl-,sys_vars-,unit-,vcol-,versioning-,period-"
     fi
     unset opt_sql_mode
     if [ $product = mysql ]
@@ -183,6 +183,7 @@ alias mtrx1="mtr --extern socket=${build}/mysql-test/var/tmp/mysqld.1.sock"
 alias mtrf="mtr --big-test --fast --parallel=$(nproc)"
 alias mtrb="mtrf --big-test"
 alias mtrz="mtr --fast --reorder --parallel=$(nproc)"
+alias mtrz2="mtr --parallel=$(nproc)"
 alias mtrzz="mtrz --debug-sync-timeout=2"
 alias mtrm="mtrz --suite=main"
 alias mtrv="mtrz --suite=versioning"
@@ -343,9 +344,25 @@ runval()
         --leak-check=no \
         --track-origins=yes \
         --log-file=valgrind-badmem.log \
-        "${opt}/bin/mysqld" "--defaults-file=$defaults" $opt_debug_gdb "$@"
+        "${opt}/bin/mysqld" "--defaults-file=$defaults" $opt_debug_gdb $opt_silent "$@"
 )}
-export -f run
+export -f runval
+
+
+runht()
+{(
+    if [ -n "$1" -a -f "$1" ]
+    then
+        defaults="$1"
+        shift
+    else
+        cd "${bush_dir}"
+        defaults=./mysqld.cnf
+    fi
+    exec heaptrack \
+        "${opt}/bin/mysqld" "--defaults-file=$defaults" $opt_debug_gdb $opt_silent "$@"
+)}
+export -f runht
 
 rund()
 {(
@@ -536,7 +553,7 @@ breaks()
 
 asan_opts=-DWITH_ASAN:BOOL=ON
 msan_opts=-DWITH_MSAN:BOOL=ON
-export debug_opts="-g -O0 -DEXTRA_DEBUG -Werror=return-type -Wno-error=unused-variable -Wno-error=unused-function"
+export debug_opts="-g -O0 -DEXTRA_DEBUG -Werror=return-type -Wno-error=unused-variable -Wno-error=unused-function -Wno-unused-but-set-variable -Wno-inconsistent-missing-override"
 export debug_opts_clang="-gdwarf-4 -fno-limit-debug-info -Wno-error=macro-redefined -Werror=overloaded-virtual -Wno-deprecated-register -Wno-inconsistent-missing-override"
 # FIXME: detect lld version and add -Wl,--threads=24
 export linker_opts_clang="-fuse-ld=lld"
@@ -932,6 +949,7 @@ prepare_sn()
         -DWITH_UNIT_TESTS=OFF \
         -DWITH_WSREP:BOOL=OFF \
         -DWITH_ZLIB=bundled \
+        -DWITHOUT_ABI_CHECK=ON \
         $flavor_opts \
         $cclauncher \
         $plugins \
@@ -982,11 +1000,14 @@ prepare_snow()
     # This influences the build
     #    -DSECURITY_HARDENED:BOOL=ON \
 
-    if [ -f "${src}/cmake/build_configurations/shogun.cmake" ]
+    if [ -z "$build_config" ]
     then
-        build_config=shogun
-    else
-        build_config=mysql_release
+        if [ -f "${src}/cmake/build_configurations/shogun.cmake" ]
+        then
+            build_config=shogun
+        else
+            build_config=mysql_release
+        fi
     fi
 
     echo "Build config: $build_config"
@@ -1475,9 +1496,21 @@ record_kills()
     done
 }
 
+reverse()
+{
+    echo "$@" > ~/reverse.gdb
+}
+
 replay()
 {
-    rr replay "$@" -- -q -ex continue -ex "tb open64" -ex reverse-continue
+    local revcmd=()
+    if [ -f ~/reverse.gdb ]
+    then
+        revcmd=(-ex "source ~/reverse.gdb")
+    else
+        revcmd=(-ex "tb open64")
+    fi
+    rr replay "$@" -- -q -ex "b dlclose" -ex continue "${revcmd[@]}" -ex reverse-continue
 }
 
 dmp()
