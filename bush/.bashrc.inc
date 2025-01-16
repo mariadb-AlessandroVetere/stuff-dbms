@@ -14,5 +14,5 @@ bush()
 
     session=$(echo "$1"|md5sum|cut -c1-8)-${1}
     screen -rd $session >/dev/null ||
-        exec screen -S $session
+        exec screen -S $session -s /bin/bash
 )}
