@@ -30,7 +30,7 @@ select_skel=false
 copy_from=
 clone_from="samu git@github.com:mariadb-corporation/mariadb-samurai.git"
 remote_add="mariadb git@github.com:MariaDB/server.git"
-checkout="10.4.20samurai"
+checkout="10.4.20-shogun"
 submodules="extra/wolfssl/wolfssl libmariadb"
 force_cleanup=false
 unset verbose_on
